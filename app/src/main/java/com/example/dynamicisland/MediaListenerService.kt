@@ -17,13 +17,13 @@ class MediaListenerService : NotificationListenerService() {
 
     // Package yang kita dengar notifikasinya
     private val monitoredPackages = setOf(
-        "com.whatsapp",
-        "com.whatsapp.w4b",
-        "com.android.dialer",
-        "com.samsung.android.dialer",
-        "com.google.android.dialer",
-        "com.android.phone",
-        "com.android.server.telecom"
+        "com.whatsapp",                  // WhatsApp
+        "com.whatsapp.w4b",              // WhatsApp Business
+        "com.android.dialer",            // Dialer (panggilan biasa)
+        "com.samsung.android.dialer",    // Samsung Dialer
+        "com.google.android.dialer",     // Google Dialer
+        "com.android.phone",             // Phone
+        "com.android.server.telecom"     // Telecom
     )
 
     private val controllerCallback = object : MediaController.Callback() {
@@ -39,14 +39,14 @@ class MediaListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         Log.d("MediaListener", "Listener connected")
-        MediaControlBridge.attach(this)   // ⬅️ TAMBAHAN
+        MediaControlBridge.attach(this)
         mediaSessionManager = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
         refreshSessions()
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
-        MediaControlBridge.detach()       // ⬅️ TAMBAHAN
+        MediaControlBridge.detach()
         IslandState.updateMusic(MusicInfo())
     }
 
@@ -86,17 +86,32 @@ class MediaListenerService : NotificationListenerService() {
             return
         }
         val metadata = c.metadata ?: return
-        val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+
+        val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE)
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+            ?: ""
+
         val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
-            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST) ?: ""
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+            ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+            ?: ""
+
         val isPlaying = c.playbackState?.state == PlaybackState.STATE_PLAYING
+
         val art: Bitmap? = try {
             metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         } catch (_: Exception) { null }
 
         IslandState.updateMusic(
-            MusicInfo(title, artist, art, isPlaying, c.packageName ?: "")
+            MusicInfo(
+                title = title,
+                artist = artist,
+                albumArt = art,
+                isPlaying = isPlaying,
+                packageName = c.packageName ?: ""
+            )
         )
     }
 
@@ -106,66 +121,133 @@ class MediaListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         sbn ?: return
-        refreshSessions()
+        refreshSessions()  // tetap cek media session juga
 
         val pkg = sbn.packageName ?: return
         if (pkg !in monitoredPackages) return
 
         val extras = sbn.notification?.extras ?: return
-        val title = extras.getCharSequence("android.title")?.toString() ?: ""
-        val text = extras.getCharSequence("android.text")?.toString() ?: ""
 
-        Log.d("MediaListener", "Notif from $pkg: $title - $text")
+        // Ambil title & text dari berbagai key (WA kadang pakai key berbeda)
+        val title = extras.getCharSequence("android.title")?.toString()
+            ?: extras.getCharSequence("android.conversationTitle")?.toString()
+            ?: ""
+        val text = extras.getCharSequence("android.text")?.toString()
+            ?: extras.getCharSequence("android.bigText")?.toString()
+            ?: extras.getCharSequence("android.subText")?.toString()
+            ?: ""
+
+        Log.d("MediaListener", "Notif from $pkg: [$title] [$text]")
 
         when (pkg) {
-            "com.whatsapp", "com.whatsapp.w4b" -> handleWhatsApp(title, text)
+            "com.whatsapp", "com.whatsapp.w4b" -> handleWhatsApp(title, text, pkg)
             else -> handleCallNotification(title, text, pkg)
         }
     }
 
-    private fun handleWhatsApp(title: String, text: String) {
-        val isCall = text.contains("panggilan", ignoreCase = true) ||
-                text.contains("call", ignoreCase = true) ||
-                text.contains("video", ignoreCase = true) ||
-                title.contains("panggilan", ignoreCase = true)
+    // ============================================
+    // WHATSAPP HANDLER
+    // ============================================
+    private fun handleWhatsApp(title: String, text: String, pkg: String) {
+        // Deteksi panggilan masuk WA
+        val isIncomingCall = text.contains("panggilan masuk", ignoreCase = true) ||
+                text.contains("incoming call", ignoreCase = true) ||
+                text.contains("video call", ignoreCase = true) ||
+                text.contains("panggilan video", ignoreCase = true) ||
+                (title.contains("panggilan", ignoreCase = true) &&
+                        !text.contains("tak terjawab", ignoreCase = true))
 
-        if (isCall) {
-            IslandState.showIncomingCall(
-                CallInfo(
-                    name = title.ifEmpty { "WhatsApp" },
-                    number = "WhatsApp Call",
-                    avatarInitial = title.firstOrNull()?.uppercase() ?: "W"
+        // Deteksi misscall WA
+        val isMissedCall = text.contains("panggilan tak terjawab", ignoreCase = true) ||
+                text.contains("missed call", ignoreCase = true) ||
+                text.contains("tidak terjawab", ignoreCase = true) ||
+                text.contains("tak dijawab", ignoreCase = true) ||
+                title.contains("panggilan tak terjawab", ignoreCase = true) ||
+                title.contains("missed call", ignoreCase = true)
+
+        when {
+            isIncomingCall -> {
+                Log.d("MediaListener", "WA incoming call: $title")
+                IslandState.showIncomingCall(
+                    CallInfo(
+                        name = title.ifEmpty { "WhatsApp" },
+                        number = "WhatsApp Call",
+                        avatarInitial = title.firstOrNull()?.uppercase()?.toString() ?: "W",
+                        packageName = "com.whatsapp"
+                    )
                 )
-            )
-        } else if (title.isNotEmpty() && text.isNotEmpty()) {
-            val initial = title.firstOrNull()?.uppercase()?.toString() ?: "W"
-            IslandState.showChat(
-                ChatInfo(
-                    senderName = title,
-                    message = text,
-                    avatarInitial = initial,
-                    packageName = "com.whatsapp"
+            }
+
+            isMissedCall -> {
+                Log.d("MediaListener", "WA misscall: $title")
+                val initial = title.firstOrNull()?.uppercase()?.toString() ?: "W"
+                IslandState.showChat(
+                    ChatInfo(
+                        senderName = title.ifEmpty { "WhatsApp" },
+                        message = "📞 Panggilan tak terjawab",
+                        avatarInitial = initial,
+                        packageName = "com.whatsapp"
+                    )
                 )
-            )
+            }
+
+            title.isNotEmpty() && text.isNotEmpty() -> {
+                // Pesan WA biasa
+                Log.d("MediaListener", "WA message: $title - $text")
+                val initial = title.firstOrNull()?.uppercase()?.toString() ?: "W"
+                IslandState.showChat(
+                    ChatInfo(
+                        senderName = title,
+                        message = text,
+                        avatarInitial = initial,
+                        packageName = "com.whatsapp"
+                    )
+                )
+            }
         }
     }
 
+    // ============================================
+    // CALL HANDLER (panggilan telepon biasa)
+    // ============================================
     private fun handleCallNotification(title: String, text: String, pkg: String) {
-        if (text.contains("panggilan", ignoreCase = true) ||
-            text.contains("incoming", ignoreCase = true) ||
-            text.contains("call", ignoreCase = true) ||
-            title.contains("panggilan", ignoreCase = true)) {
+        // Deteksi panggilan telepon masuk
+        val isCall = text.contains("panggilan", ignoreCase = true) ||
+                text.contains("incoming", ignoreCase = true) ||
+                text.contains("call", ignoreCase = true) ||
+                text.contains("missed", ignoreCase = true) ||
+                title.contains("panggilan", ignoreCase = true)
 
-            val callerName = when {
-                title.contains(":") -> title.substringAfter(":").trim()
-                else -> title.trim()
-            }.ifEmpty { "Nomor Tidak Dikenal" }
+        if (!isCall) return
 
+        // Misscall telepon biasa
+        val isMissed = text.contains("tak terjawab", ignoreCase = true) ||
+                text.contains("missed", ignoreCase = true) ||
+                title.contains("missed", ignoreCase = true)
+
+        val callerName = when {
+            title.contains(":") -> title.substringAfter(":").trim()
+            else -> title.trim()
+        }.ifEmpty { "Nomor Tidak Dikenal" }
+
+        val initial = callerName.firstOrNull()?.uppercase()?.toString() ?: "?"
+
+        if (isMissed) {
+            IslandState.showChat(
+                ChatInfo(
+                    senderName = callerName,
+                    message = "📞 Panggilan tak terjawab",
+                    avatarInitial = initial,
+                    packageName = pkg
+                )
+            )
+        } else {
             IslandState.showIncomingCall(
                 CallInfo(
                     name = callerName,
                     number = "Panggilan Masuk",
-                    avatarInitial = callerName.firstOrNull()?.uppercase()?.toString() ?: "?"
+                    avatarInitial = initial,
+                    packageName = pkg
                 )
             )
         }
@@ -173,6 +255,10 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
+        // Opsional: auto-dismiss kalau notif hilang
+        // if (sbn?.packageName == "com.whatsapp" && IslandState.mode.value == IslandMode.CHAT) {
+        //     IslandState.dismissChat()
+        // }
     }
 
     // ============================================
