@@ -10,6 +10,11 @@ import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -35,6 +40,9 @@ class DynamicIslandService : Service() {
                 NotificationManager.IMPORTANCE_MIN
             ).apply {
                 setShowBadge(false)
+                enableLights(false)
+                enableVibration(false)
+                setSound(null, null)
             }
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
@@ -46,6 +54,7 @@ class DynamicIslandService : Service() {
                     .setContentTitle("Dynamic Island aktif")
                     .setSmallIcon(android.R.drawable.ic_menu_info_details)
                     .setOngoing(true)
+                    .setPriority(Notification.PRIORITY_MIN)
                     .build()
             } else {
                 @Suppress("DEPRECATION")
@@ -53,6 +62,7 @@ class DynamicIslandService : Service() {
                     .setContentTitle("Dynamic Island aktif")
                     .setSmallIcon(android.R.drawable.ic_menu_info_details)
                     .setOngoing(true)
+                    .setPriority(Notification.PRIORITY_MIN)
                     .build()
             }
 
@@ -72,7 +82,17 @@ class DynamicIslandService : Service() {
             setViewTreeLifecycleOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
-                DynamicIslandUI()
+                // ⬇️ Baca state isVisible dari IslandState
+                val isVisible = IslandState.isVisible.value
+
+                // ⬇️ Auto-hide: fade + slide keluar/masuk
+                AnimatedVisibility(
+                    visible = isVisible,
+                    enter = fadeIn() + slideInVertically { -it },
+                    exit = fadeOut() + slideOutVertically { -it }
+                ) {
+                    DynamicIslandUI()
+                }
             }
         }
 
