@@ -18,6 +18,7 @@ data class CallInfo(
 object IslandState {
     val mode = mutableStateOf(IslandMode.IDLE)
     val callInfo = mutableStateOf(CallInfo())
+    val musicInfo = mutableStateOf(MusicInfo())   // ⬅️ BARU
 
     fun showIncomingCall(info: CallInfo = CallInfo()) {
         callInfo.value = info
@@ -34,6 +35,21 @@ object IslandState {
 
     fun showMusic() {
         mode.value = IslandMode.MUSIC
+    }
+
+    // ⬇️ BARU: update dari MediaListenerService
+    fun updateMusic(info: MusicInfo) {
+        musicInfo.value = info
+        mode.value = if (info.isPlaying && !info.isEmpty) {
+            // Jangan timpa mode call kalau sedang telepon
+            if (mode.value == IslandMode.CALL_RINGING || mode.value == IslandMode.CALL_ACTIVE) {
+                mode.value
+            } else {
+                IslandMode.MUSIC
+            }
+        } else {
+            if (mode.value == IslandMode.MUSIC) IslandMode.IDLE else mode.value
+        }
     }
 
     fun reset() {
