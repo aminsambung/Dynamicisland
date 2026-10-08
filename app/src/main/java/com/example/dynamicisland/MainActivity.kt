@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,7 +25,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(this)
+                    MainScreen()
                 }
             }
         }
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(activity: ComponentActivity) {
+fun MainScreen() {
     val context = LocalContext.current
     var hasOverlay by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var serviceRunning by remember { mutableStateOf(false) }
@@ -54,7 +55,7 @@ fun MainScreen(activity: ComponentActivity) {
 
         Spacer(Modifier.height(32.dp))
 
-        // --- Setup ---
+        // ================= SETUP CARD =================
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("⚙️ Setup", style = MaterialTheme.typography.titleMedium)
@@ -66,6 +67,7 @@ fun MainScreen(activity: ComponentActivity) {
 
                 Spacer(Modifier.height(16.dp))
 
+                // 1. Izin Overlay
                 Button(
                     onClick = {
                         if (!Settings.canDrawOverlays(context)) {
@@ -84,6 +86,20 @@ fun MainScreen(activity: ComponentActivity) {
 
                 Spacer(Modifier.height(8.dp))
 
+                // 2. Izin Notification Access
+                Button(
+                    onClick = {
+                        val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("2. Izinkan Akses Notifikasi (WA & lagu)")
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // 3. Aktifkan Service
                 Button(
                     onClick = {
                         val intent = Intent(context, DynamicIslandService::class.java)
@@ -97,11 +113,12 @@ fun MainScreen(activity: ComponentActivity) {
                     modifier = Modifier.fillMaxWidth(),
                     enabled = hasOverlay && !serviceRunning
                 ) {
-                    Text("2. Aktifkan Dynamic Island")
+                    Text("3. Aktifkan Dynamic Island")
                 }
 
                 Spacer(Modifier.height(8.dp))
 
+                // Stop Service
                 OutlinedButton(
                     onClick = {
                         context.stopService(Intent(context, DynamicIslandService::class.java))
@@ -118,20 +135,17 @@ fun MainScreen(activity: ComponentActivity) {
 
         Spacer(Modifier.height(24.dp))
 
-        // --- Simulasi ---
+        // ================= SIMULASI CARD =================
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("🎬 Simulasi", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(12.dp))
 
+                // Simulasi Panggilan
                 Button(
                     onClick = {
                         IslandState.showIncomingCall(
-                            CallInfo(
-                                name = "Budi Santoso",
-                                number = "+62 812-3456-7890",
-                                avatarInitial = "B"
-                            )
+                            CallInfo("Budi Santoso", "+62 812-3456-7890", "B")
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -145,19 +159,52 @@ fun MainScreen(activity: ComponentActivity) {
 
                 Spacer(Modifier.height(8.dp))
 
+                // Simulasi Chat WA
                 Button(
-                    onClick = { IslandState.showMusic() },
+                    onClick = {
+                        IslandState.showChat(
+                            ChatInfo(
+                                senderName = "Ibu",
+                                message = "Sudah makan belum nak?",
+                                avatarInitial = "I",
+                                packageName = "com.whatsapp"
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF25D366)
+                    ),
+                    enabled = serviceRunning
+                ) {
+                    Text("💬 Pesan WhatsApp")
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Simulasi Musik
+                Button(
+                    onClick = {
+                        IslandState.updateMusic(
+                            MusicInfo(
+                                title = "Perfect",
+                                artist = "Ed Sheeran",
+                                isPlaying = true
+                            )
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF1DB954)
                     ),
                     enabled = serviceRunning
                 ) {
-                    Text("🎵 Mode Musik")
+                    Text("🎵 Simulasi Lagu")
                 }
 
                 Spacer(Modifier.height(8.dp))
 
+                // Reset
                 OutlinedButton(
                     onClick = { IslandState.reset() },
                     modifier = Modifier.fillMaxWidth(),
@@ -171,7 +218,11 @@ fun MainScreen(activity: ComponentActivity) {
         Spacer(Modifier.height(24.dp))
 
         Text(
-            "Tips: aktifkan service dulu, lalu tekan tombol simulasi.\nIsland akan muncul di atas status bar 📱",
+            "Tips:\n" +
+                "1. Aktifkan izin Overlay & Notifikasi\n" +
+                "2. Aktifkan service\n" +
+                "3. Play lagu di Spotify / terima WA\n" +
+                "4. Tap island untuk kecilkan 🎵",
             style = MaterialTheme.typography.bodySmall,
             color = Color.Gray
         )
@@ -179,34 +230,19 @@ fun MainScreen(activity: ComponentActivity) {
         Spacer(Modifier.height(40.dp))
     }
 
-    // Refresh status overlay ketika balik dari settings
+    // Auto-refresh status overlay
     LaunchedEffect(Unit) {
         while (true) {
             hasOverlay = Settings.canDrawOverlays(context)
-            kotlinx.coroutines.delay(1000)
+            delay(1000)
         }
     }
-}
-
-Spacer(Modifier.height(8.dp))
-
-Button(
-    onClick = {
-        val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-        context.startActivity(intent)
-    },
-    modifier = Modifier.fillMaxWidth()
-) {
-    Text("3. Izinkan Akses Notifikasi (untuk lagu)")
 }
 
 @Composable
 private fun StatusRow(label: String, ok: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (ok) "🟢" else "🔴",
-            fontSize = MaterialTheme.typography.bodyLarge.fontSize
-        )
+        Text(if (ok) "🟢" else "🔴")
         Spacer(Modifier.width(8.dp))
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
