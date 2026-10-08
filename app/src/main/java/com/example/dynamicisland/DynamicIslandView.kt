@@ -18,8 +18,6 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -41,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 // ============================================
 // WARNA TEMA
@@ -54,7 +53,7 @@ private val CameraDotGreen = Color(0xFF00E676)
 private val AvatarBg = Color(0xFF2C2C2E)
 
 // ============================================
-// MAIN UI — Entry Point
+// MAIN UI
 // ============================================
 @Composable
 fun DynamicIslandUI() {
@@ -100,7 +99,6 @@ fun DynamicIslandUI() {
             // ============ TAP / DOUBLE TAP / LONG PRESS ============
             .pointerInput(mode, isCollapsed) {
                 detectTapGestures(
-                    // 👆 TAP — Play/Pause kalau besar, Expand kalau kecil
                     onTap = {
                         when (mode) {
                             IslandMode.MUSIC -> {
@@ -110,11 +108,27 @@ fun DynamicIslandUI() {
                                     MediaControlBridge.playPause()
                                 }
                             }
-                            IslandMode.CHAT -> IslandState.dismissChat()
-                            else -> {}
+                            IslandMode.CHAT -> {
+                                // 👆 Tap chat → buka WhatsApp + dismiss
+                                openApp(context, IslandState.chatInfo.value.packageName)
+                                IslandState.dismissChat()
+                            }
+                            IslandMode.CALL_RINGING -> {
+                                // 👆 Tap call → buka WA / dialer + dismiss
+                                openApp(context, IslandState.callInfo.value.packageName)
+                                IslandState.dismissCall()
+                            }
+                            IslandMode.CALL_ACTIVE -> {
+                                // 👆 Tap call active → buka app
+                                openApp(context, IslandState.callInfo.value.packageName)
+                            }
+                            IslandMode.IDLE -> {
+                                if (!IslandState.musicInfo.value.isEmpty) {
+                                    IslandState.showMusic()
+                                }
+                            }
                         }
                     },
-                    // 👆👆 DOUBLE TAP — Collapse jadi pill
                     onDoubleTap = {
                         when (mode) {
                             IslandMode.MUSIC -> IslandState.toggleCollapse()
@@ -122,7 +136,6 @@ fun DynamicIslandUI() {
                             else -> {}
                         }
                     },
-                    // 👇 LONG PRESS — Buka player
                     onLongPress = {
                         when (mode) {
                             IslandMode.MUSIC -> openMusicApp(context)
@@ -132,17 +145,32 @@ fun DynamicIslandUI() {
                     }
                 )
             }
-            // ============ SWIPE KIRI / KANAN ============
+            // ============ SWIPE ============
             .pointerInput(mode) {
                 var totalDrag = 0f
                 detectHorizontalDragGestures(
                     onDragStart = { totalDrag = 0f },
                     onDragEnd = {
-                        if (mode == IslandMode.MUSIC) {
-                            when {
-                                totalDrag < -80f -> MediaControlBridge.skipPrevious()  // 👈 kiri = PREV
-                                totalDrag > 80f -> MediaControlBridge.skipNext()       // 👉 kanan = NEXT
+                        when (mode) {
+                            IslandMode.MUSIC -> {
+                                when {
+                                    totalDrag < -80f -> MediaControlBridge.skipPrevious()
+                                    totalDrag > 80f -> MediaControlBridge.skipNext()
+                                }
                             }
+                            IslandMode.CHAT -> {
+                                // 👈👉 Swipe dari manapun → dismiss
+                                if (abs(totalDrag) > 80f) {
+                                    IslandState.dismissChat()
+                                }
+                            }
+                            IslandMode.CALL_RINGING -> {
+                                // 👈👉 Swipe → dismiss call
+                                if (abs(totalDrag) > 80f) {
+                                    IslandState.dismissCall()
+                                }
+                            }
+                            else -> {}
                         }
                         totalDrag = 0f
                     },
@@ -199,7 +227,6 @@ private fun MiniMusicContent() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Album art mini berputar
         RotatingAlbumArt(
             size = 20.dp,
             iconSize = 11.dp,
@@ -207,7 +234,7 @@ private fun MiniMusicContent() {
             albumArt = music.albumArt
         )
 
-        // Equalizer mini / icon pause
+        // Equalizer mini hanya saat playing
         if (music.isPlaying) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val heights = listOf(5.dp, 9.dp, 5.dp)
@@ -222,13 +249,6 @@ private fun MiniMusicContent() {
                     )
                 }
             }
-        } else {
-            Icon(
-                Icons.Default.Pause,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(12.dp)
-            )
         }
     }
 }
@@ -245,7 +265,6 @@ private fun MusicContent() {
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Album art berputar
         RotatingAlbumArt(
             size = 46.dp,
             iconSize = 24.dp,
@@ -275,22 +294,15 @@ private fun MusicContent() {
 
         Spacer(Modifier.width(8.dp))
 
-        // Equalizer atau icon pause
         if (music.isPlaying) {
             EqualizerBars()
-        } else {
-            Icon(
-                Icons.Default.Pause,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.5f),
-                modifier = Modifier.size(16.dp)
-            )
         }
     }
 }
 
 // ============================================
 // ROTATING ALBUM ART
+// Berputar saat playing, DIAM saat pause
 // ============================================
 @Composable
 private fun RotatingAlbumArt(
@@ -373,6 +385,8 @@ private fun EqualizerBars() {
 
 // ============================================
 // CHAT (WhatsApp dll)
+// Tap → buka WA
+// Swipe → dismiss
 // ============================================
 @Composable
 private fun ChatContent() {
@@ -383,6 +397,7 @@ private fun ChatContent() {
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Avatar pengirim
         Box(
             Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
             contentAlignment = Alignment.Center
@@ -394,7 +409,9 @@ private fun ChatContent() {
                 fontWeight = FontWeight.Bold
             )
         }
+
         Spacer(Modifier.width(10.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 chat.senderName.ifEmpty { "Pesan Baru" },
@@ -412,18 +429,33 @@ private fun ChatContent() {
                 overflow = TextOverflow.Ellipsis
             )
         }
+
         Spacer(Modifier.width(8.dp))
-        Icon(
-            Icons.Default.Chat,
-            contentDescription = null,
-            tint = WhatsAppGreen,
-            modifier = Modifier.size(20.dp)
-        )
+
+        // Icon WhatsApp + chevron (indikator bisa di-tap)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Chat,
+                contentDescription = null,
+                tint = WhatsAppGreen,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                "›",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
 // ============================================
-// CALL RINGING
+// CALL RINGING — panggilan masuk
+// Tap → buka WA/Dialer
+// Swipe → dismiss
+// Tombol → terima/tolak
 // ============================================
 @Composable
 private fun CallRingingContent(call: CallInfo) {
@@ -444,6 +476,7 @@ private fun CallRingingContent(call: CallInfo) {
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Avatar + pulse
         Box(contentAlignment = Alignment.Center) {
             Box(
                 Modifier
@@ -464,7 +497,10 @@ private fun CallRingingContent(call: CallInfo) {
                 )
             }
         }
+
         Spacer(Modifier.width(12.dp))
+
+        // Info pemanggil + chevron
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 call.name,
@@ -474,19 +510,31 @@ private fun CallRingingContent(call: CallInfo) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                "Panggilan masuk…",
-                color = Color.Gray,
-                fontSize = 11.sp,
-                maxLines = 1
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Panggilan masuk",
+                    color = Color.Gray,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "›",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
+
+        // Tombol tolak
         CallButton(
             icon = Icons.Default.CallEnd,
             bg = RedDecline,
             onClick = { IslandState.endCall() }
         )
         Spacer(Modifier.width(8.dp))
+        // Tombol terima
         CallButton(
             icon = Icons.Default.Call,
             bg = GreenAccept,
@@ -496,7 +544,8 @@ private fun CallRingingContent(call: CallInfo) {
 }
 
 // ============================================
-// CALL ACTIVE
+// CALL ACTIVE — sedang menelepon / misscall
+// Tap → buka app
 // ============================================
 @Composable
 private fun CallActiveContent(call: CallInfo) {
@@ -602,6 +651,34 @@ private fun CallButton(
 }
 
 // ============================================
+// HELPER — Buka app berdasarkan package name
+// ============================================
+private fun openApp(context: Context, packageName: String) {
+    if (packageName.isEmpty()) return
+
+    context.packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
+        intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+        )
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("DynamicIsland", "openApp failed: $packageName", e)
+        }
+    } ?: run {
+        // Fallback: buka Play Store
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse("market://details?id=$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {}
+    }
+}
+
+// ============================================
 // HELPER — Buka app pemutar musik
 // ============================================
 private fun openMusicApp(context: Context) {
@@ -617,26 +694,21 @@ private fun openMusicApp(context: Context) {
             try {
                 context.startActivity(intent)
                 return
-            } catch (_: Exception) {
-                // Lanjut ke fallback
-            }
+            } catch (_: Exception) {}
         }
     }
 
     // 2. Fallback: coba app musik populer
     val fallbackPackages = listOf(
-        // Streaming
         "com.spotify.music",
         "com.google.android.apps.youtube.music",
         "com.apple.android.music",
-        // Offline players
         "in.krosbits.musicolet",
         "com.maxmpz.audioplayer",
         "com.aimp.player",
         "org.videolan.vlc",
         "com.kodarkooperativet.blackplayerfree",
         "code.name.monkey.retromusic",
-        // Player bawaan
         "com.miui.player",
         "com.samsung.android.music",
         "com.sec.android.app.music",
@@ -656,9 +728,7 @@ private fun openMusicApp(context: Context) {
             try {
                 context.startActivity(intent)
                 return
-            } catch (_: Exception) {
-                // Coba berikutnya
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -669,9 +739,7 @@ private fun openMusicApp(context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
-    } catch (_: Exception) {
-        // Give up
-    }
+    } catch (_: Exception) {}
 }
 
 // ============================================
@@ -714,6 +782,19 @@ fun PreviewMusicExpanded() {
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
 @Composable
+fun PreviewMusicPaused() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.MUSIC
+        IslandState.isManuallyCollapsed.value = false
+        IslandState.musicInfo.value = MusicInfo(
+            title = "Perfect", artist = "Ed Sheeran", isPlaying = false
+        )
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
+@Composable
 fun PreviewMusicCollapsed() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.MUSIC
@@ -745,7 +826,7 @@ fun PreviewChat() {
 fun PreviewCallRinging() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.CALL_RINGING
-        IslandState.callInfo.value = CallInfo("Budi Santoso", "+62 812...", "B")
+        IslandState.callInfo.value = CallInfo("Budi Santoso", "+62 812...", "B", "com.whatsapp")
         DynamicIslandUI()
     }
 }
@@ -755,7 +836,7 @@ fun PreviewCallRinging() {
 fun PreviewCallActive() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.CALL_ACTIVE
-        IslandState.callInfo.value = CallInfo("Budi Santoso")
+        IslandState.callInfo.value = CallInfo("Budi Santoso", "", "B", "com.whatsapp")
         DynamicIslandUI()
     }
 }
