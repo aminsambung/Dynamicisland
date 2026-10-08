@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -42,9 +44,16 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 // ============================================
-// WARNA TEMA
+// WARNA TEMA — GLASSMORPHISM (Opsi B)
 // ============================================
-private val IslandBlack = Color(0xFF0A0A0A)
+// Gradient semi-transparan:
+// - Atas: 80% opacity (lebih terang)
+// - Bawah: 67% opacity (lebih tembus)
+private val IslandGlassTop = Color(0xCC1A1A1A)
+private val IslandGlassBottom = Color(0xAA0A0A0A)
+private val IslandBorderColor = Color(0x14FFFFFF)   // putih 8% untuk border tipis
+
+// Warna aksen
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
 private val SpotifyGreen = Color(0xFF1DB954)
@@ -95,7 +104,18 @@ fun DynamicIslandUI() {
             .width(width)
             .height(height)
             .clip(RoundedCornerShape(percent = 50))
-            .background(IslandBlack)
+            // ⬇️ GLASSMORPHISM: gradient semi-transparan
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(IslandGlassTop, IslandGlassBottom)
+                )
+            )
+            // ⬇️ Border tipis biar keliatan "mengambang"
+            .border(
+                width = 0.5.dp,
+                color = IslandBorderColor,
+                shape = RoundedCornerShape(percent = 50)
+            )
             // ============ TAP / DOUBLE TAP / LONG PRESS ============
             .pointerInput(mode, isCollapsed) {
                 detectTapGestures(
@@ -109,17 +129,14 @@ fun DynamicIslandUI() {
                                 }
                             }
                             IslandMode.CHAT -> {
-                                // 👆 Tap chat → buka WhatsApp + dismiss
                                 openApp(context, IslandState.chatInfo.value.packageName)
                                 IslandState.dismissChat()
                             }
                             IslandMode.CALL_RINGING -> {
-                                // 👆 Tap call → buka WA / dialer + dismiss
                                 openApp(context, IslandState.callInfo.value.packageName)
                                 IslandState.dismissCall()
                             }
                             IslandMode.CALL_ACTIVE -> {
-                                // 👆 Tap call active → buka app
                                 openApp(context, IslandState.callInfo.value.packageName)
                             }
                             IslandMode.IDLE -> {
@@ -159,16 +176,10 @@ fun DynamicIslandUI() {
                                 }
                             }
                             IslandMode.CHAT -> {
-                                // 👈👉 Swipe dari manapun → dismiss
-                                if (abs(totalDrag) > 80f) {
-                                    IslandState.dismissChat()
-                                }
+                                if (abs(totalDrag) > 80f) IslandState.dismissChat()
                             }
                             IslandMode.CALL_RINGING -> {
-                                // 👈👉 Swipe → dismiss call
-                                if (abs(totalDrag) > 80f) {
-                                    IslandState.dismissCall()
-                                }
+                                if (abs(totalDrag) > 80f) IslandState.dismissCall()
                             }
                             else -> {}
                         }
@@ -215,7 +226,7 @@ private fun IdleContent() {
 }
 
 // ============================================
-// MINI MUSIC (saat collapsed)
+// MINI MUSIC (collapsed)
 // ============================================
 @Composable
 private fun MiniMusicContent() {
@@ -234,7 +245,6 @@ private fun MiniMusicContent() {
             albumArt = music.albumArt
         )
 
-        // Equalizer mini hanya saat playing
         if (music.isPlaying) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val heights = listOf(5.dp, 9.dp, 5.dp)
@@ -385,8 +395,6 @@ private fun EqualizerBars() {
 
 // ============================================
 // CHAT (WhatsApp dll)
-// Tap → buka WA
-// Swipe → dismiss
 // ============================================
 @Composable
 private fun ChatContent() {
@@ -397,7 +405,6 @@ private fun ChatContent() {
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar pengirim
         Box(
             Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
             contentAlignment = Alignment.Center
@@ -432,7 +439,6 @@ private fun ChatContent() {
 
         Spacer(Modifier.width(8.dp))
 
-        // Icon WhatsApp + chevron (indikator bisa di-tap)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.Default.Chat,
@@ -452,10 +458,7 @@ private fun ChatContent() {
 }
 
 // ============================================
-// CALL RINGING — panggilan masuk
-// Tap → buka WA/Dialer
-// Swipe → dismiss
-// Tombol → terima/tolak
+// CALL RINGING
 // ============================================
 @Composable
 private fun CallRingingContent(call: CallInfo) {
@@ -476,7 +479,6 @@ private fun CallRingingContent(call: CallInfo) {
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar + pulse
         Box(contentAlignment = Alignment.Center) {
             Box(
                 Modifier
@@ -500,7 +502,6 @@ private fun CallRingingContent(call: CallInfo) {
 
         Spacer(Modifier.width(12.dp))
 
-        // Info pemanggil + chevron
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 call.name,
@@ -527,14 +528,12 @@ private fun CallRingingContent(call: CallInfo) {
             }
         }
 
-        // Tombol tolak
         CallButton(
             icon = Icons.Default.CallEnd,
             bg = RedDecline,
             onClick = { IslandState.endCall() }
         )
         Spacer(Modifier.width(8.dp))
-        // Tombol terima
         CallButton(
             icon = Icons.Default.Call,
             bg = GreenAccept,
@@ -544,8 +543,7 @@ private fun CallRingingContent(call: CallInfo) {
 }
 
 // ============================================
-// CALL ACTIVE — sedang menelepon / misscall
-// Tap → buka app
+// CALL ACTIVE
 // ============================================
 @Composable
 private fun CallActiveContent(call: CallInfo) {
@@ -667,7 +665,6 @@ private fun openApp(context: Context, packageName: String) {
             android.util.Log.e("DynamicIsland", "openApp failed: $packageName", e)
         }
     } ?: run {
-        // Fallback: buka Play Store
         try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse("market://details?id=$packageName")
@@ -684,7 +681,6 @@ private fun openApp(context: Context, packageName: String) {
 private fun openMusicApp(context: Context) {
     val packageName = IslandState.musicInfo.value.packageName
 
-    // 1. Coba buka package yang sedang kirim media session
     if (packageName.isNotEmpty()) {
         context.packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
             intent.addFlags(
@@ -698,7 +694,6 @@ private fun openMusicApp(context: Context) {
         }
     }
 
-    // 2. Fallback: coba app musik populer
     val fallbackPackages = listOf(
         "com.spotify.music",
         "com.google.android.apps.youtube.music",
@@ -732,7 +727,6 @@ private fun openMusicApp(context: Context) {
         }
     }
 
-    // 3. Fallback terakhir: buka Play Store search
     try {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             data = Uri.parse("market://search?q=music+player")
@@ -775,19 +769,6 @@ fun PreviewMusicExpanded() {
         IslandState.isManuallyCollapsed.value = false
         IslandState.musicInfo.value = MusicInfo(
             title = "Perfect", artist = "Ed Sheeran", isPlaying = true
-        )
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
-@Composable
-fun PreviewMusicPaused() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.MUSIC
-        IslandState.isManuallyCollapsed.value = false
-        IslandState.musicInfo.value = MusicInfo(
-            title = "Perfect", artist = "Ed Sheeran", isPlaying = false
         )
         DynamicIslandUI()
     }
