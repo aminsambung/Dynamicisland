@@ -1,5 +1,9 @@
 package com.example.dynamicisland
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,9 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -49,6 +55,7 @@ private val AvatarBg = Color(0xFF2C2C2E)
 // ============================================
 @Composable
 fun DynamicIslandUI() {
+    val context = LocalContext.current
     val mode = IslandState.mode.value
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
@@ -89,10 +96,19 @@ fun DynamicIslandUI() {
             .background(IslandBlack)
             .pointerInput(mode, isCollapsed) {
                 detectTapGestures(
+                    // 👆 TAP — collapse / expand / dismiss chat
                     onTap = {
                         when (mode) {
                             IslandMode.MUSIC -> IslandState.toggleCollapse()
                             IslandMode.CHAT -> IslandState.dismissChat()
+                            else -> {}
+                        }
+                    },
+                    // 👇 TAHAN LAMA — buka app pemutar musik
+                    onLongPress = {
+                        when (mode) {
+                            IslandMode.MUSIC -> openMusicApp(context)
+                            IslandMode.CALL_ACTIVE -> openDialer(context)
                             else -> {}
                         }
                     }
@@ -142,26 +158,14 @@ private fun MiniMusicContent() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(
-            Modifier.size(18.dp).clip(CircleShape).background(SpotifyGreen),
-            contentAlignment = Alignment.Center
-        ) {
-            val art = music.albumArt
-            if (art != null && !art.isRecycled) {
-                Image(
-                    bitmap = art.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(CircleShape)
-                )
-            } else {
-                Icon(
-                    Icons.Default.MusicNote, null,
-                    tint = Color.White,
-                    modifier = Modifier.size(11.dp)
-                )
-            }
-        }
+        // Album art mini yang berputar
+        RotatingAlbumArt(
+            size = 20.dp,
+            iconSize = 11.dp,
+            isPlaying = music.isPlaying,
+            albumArt = music.albumArt
+        )
+
         if (music.isPlaying) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val heights = listOf(5.dp, 9.dp, 5.dp)
@@ -190,27 +194,16 @@ private fun MusicContent() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier.size(46.dp).clip(CircleShape).background(SpotifyGreen),
-            contentAlignment = Alignment.Center
-        ) {
-            val art = music.albumArt
-            if (art != null && !art.isRecycled) {
-                Image(
-                    bitmap = art.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(CircleShape)
-                )
-            } else {
-                Icon(
-                    Icons.Default.MusicNote, null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
+        // Album art berputar
+        RotatingAlbumArt(
+            size = 46.dp,
+            iconSize = 24.dp,
+            isPlaying = music.isPlaying,
+            albumArt = music.albumArt
+        )
+
         Spacer(Modifier.width(10.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 music.title.ifEmpty { "Tidak ada lagu" },
@@ -228,11 +221,69 @@ private fun MusicContent() {
                 overflow = TextOverflow.Ellipsis
             )
         }
+
         Spacer(Modifier.width(8.dp))
+
         if (music.isPlaying) EqualizerBars()
     }
 }
 
+// ============================================
+// ROTATING ALBUM ART
+// ============================================
+@Composable
+private fun RotatingAlbumArt(
+    size: Dp,
+    iconSize: Dp,
+    isPlaying: Boolean,
+    albumArt: Bitmap?
+) {
+    val infinite = rememberInfiniteTransition(label = "rotate")
+    val rotation by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 8000,  // 8 detik per putaran penuh
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    // Kalau lagu pause, rotasi berhenti di posisi 0
+    val currentRotation = if (isPlaying) rotation else 0f
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .graphicsLayer { rotationZ = currentRotation }
+            .clip(CircleShape)
+            .background(SpotifyGreen),
+        contentAlignment = Alignment.Center
+    ) {
+        if (albumArt != null && !albumArt.isRecycled) {
+            Image(
+                bitmap = albumArt.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
+            )
+        } else {
+            Icon(
+                Icons.Default.MusicNote,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(iconSize)
+            )
+        }
+    }
+}
+
+// ============================================
+// EQUALIZER BARS
+// ============================================
 @Composable
 private fun EqualizerBars() {
     val infinite = rememberInfiniteTransition(label = "eq")
@@ -270,13 +321,12 @@ private fun ChatContent() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar pengirim
         Box(
             Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = chat.avatarInitial.ifEmpty { "?" },
+                chat.avatarInitial.ifEmpty { "?" },
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
@@ -285,7 +335,7 @@ private fun ChatContent() {
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = chat.senderName.ifEmpty { "Pesan Baru" },
+                chat.senderName.ifEmpty { "Pesan Baru" },
                 color = Color.White,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -293,7 +343,7 @@ private fun ChatContent() {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = chat.message,
+                chat.message,
                 color = Color.Gray,
                 fontSize = 11.sp,
                 maxLines = 1,
@@ -457,7 +507,7 @@ private fun CallActiveContent(call: CallInfo) {
 }
 
 // ============================================
-// REUSABLE
+// REUSABLE — tombol call bulat
 // ============================================
 @Composable
 private fun CallButton(
@@ -482,6 +532,77 @@ private fun CallButton(
             modifier = Modifier.size(iconSize)
         )
     }
+}
+
+// ============================================
+// HELPER — buka app pemutar musik
+// ============================================
+private fun openMusicApp(context: Context) {
+    val packageName = IslandState.musicInfo.value.packageName
+
+    // 1. Coba buka package yang sedang kirim media session
+    if (packageName.isNotEmpty()) {
+        context.packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+            )
+            try {
+                context.startActivity(intent)
+                return
+            } catch (_: Exception) {
+                // Lanjut ke fallback
+            }
+        }
+    }
+
+    // 2. Fallback: coba app musik populer
+    val fallbackPackages = listOf(
+        "com.spotify.music",
+        "com.google.android.apps.youtube.music",
+        "com.apple.android.music",
+        "com.soundcloud.android",
+        "com.amazon.mp3",
+        "deezer.android.app"
+    )
+
+    for (pkg in fallbackPackages) {
+        context.packageManager.getLaunchIntentForPackage(pkg)?.let { intent ->
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+            )
+            try {
+                context.startActivity(intent)
+                return
+            } catch (_: Exception) {
+                // Coba berikutnya
+            }
+        }
+    }
+
+    // 3. Fallback terakhir: buka Play Store search
+    try {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("market://search?q=music+player")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        // Give up
+    }
+}
+
+// ============================================
+// HELPER — buka dialer
+// ============================================
+private fun openDialer(context: Context) {
+    try {
+        val intent = Intent(Intent.ACTION_DIAL).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {}
 }
 
 // ============================================
