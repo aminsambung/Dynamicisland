@@ -17,13 +17,13 @@ class MediaListenerService : NotificationListenerService() {
 
     // Package yang kita dengar notifikasinya
     private val monitoredPackages = setOf(
-        "com.whatsapp",                  // WhatsApp
-        "com.whatsapp.w4b",              // WhatsApp Business
-        "com.android.dialer",            // Dialer (panggilan biasa)
-        "com.samsung.android.dialer",    // Samsung Dialer
-        "com.google.android.dialer",     // Google Dialer
-        "com.android.phone",             // Phone
-        "com.android.server.telecom"     // Telecom
+        "com.whatsapp",
+        "com.whatsapp.w4b",
+        "com.android.dialer",
+        "com.samsung.android.dialer",
+        "com.google.android.dialer",
+        "com.android.phone",
+        "com.android.server.telecom"
     )
 
     private val controllerCallback = object : MediaController.Callback() {
@@ -39,12 +39,14 @@ class MediaListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         Log.d("MediaListener", "Listener connected")
+        MediaControlBridge.attach(this)   // ⬅️ TAMBAHAN
         mediaSessionManager = getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
         refreshSessions()
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        MediaControlBridge.detach()       // ⬅️ TAMBAHAN
         IslandState.updateMusic(MusicInfo())
     }
 
@@ -104,7 +106,7 @@ class MediaListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         sbn ?: return
-        refreshSessions()  // tetap cek media session juga
+        refreshSessions()
 
         val pkg = sbn.packageName ?: return
         if (pkg !in monitoredPackages) return
@@ -122,7 +124,6 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     private fun handleWhatsApp(title: String, text: String) {
-        // Deteksi panggilan WA masuk
         val isCall = text.contains("panggilan", ignoreCase = true) ||
                 text.contains("call", ignoreCase = true) ||
                 text.contains("video", ignoreCase = true) ||
@@ -137,7 +138,6 @@ class MediaListenerService : NotificationListenerService() {
                 )
             )
         } else if (title.isNotEmpty() && text.isNotEmpty()) {
-            // Notifikasi pesan WA
             val initial = title.firstOrNull()?.uppercase()?.toString() ?: "W"
             IslandState.showChat(
                 ChatInfo(
@@ -151,7 +151,6 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     private fun handleCallNotification(title: String, text: String, pkg: String) {
-        // Deteksi panggilan telepon biasa
         if (text.contains("panggilan", ignoreCase = true) ||
             text.contains("incoming", ignoreCase = true) ||
             text.contains("call", ignoreCase = true) ||
@@ -174,8 +173,43 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
-        // Kalau notif WA hilang, kembalikan mode ke IDLE (opsional)
-        // Kalau mau auto-dismiss chat setelah baca, aktifkan ini:
-        // if (sbn?.packageName in monitoredPackages) IslandState.dismissChat()
+    }
+
+    // ============================================
+    // MEDIA CONTROL — untuk kontrol dari Dynamic Island
+    // ============================================
+    fun playPause() {
+        val c = activeController ?: return
+        try {
+            val state = c.playbackState?.state
+            if (state == PlaybackState.STATE_PLAYING) {
+                c.transportControls.pause()
+            } else {
+                c.transportControls.play()
+            }
+            Log.d("MediaListener", "playPause called")
+        } catch (e: Exception) {
+            Log.e("MediaListener", "playPause error", e)
+        }
+    }
+
+    fun skipNext() {
+        val c = activeController ?: return
+        try {
+            c.transportControls.skipToNext()
+            Log.d("MediaListener", "skipNext called")
+        } catch (e: Exception) {
+            Log.e("MediaListener", "next error", e)
+        }
+    }
+
+    fun skipPrevious() {
+        val c = activeController ?: return
+        try {
+            c.transportControls.skipToPrevious()
+            Log.d("MediaListener", "skipPrevious called")
+        } catch (e: Exception) {
+            Log.e("MediaListener", "prev error", e)
+        }
     }
 }
