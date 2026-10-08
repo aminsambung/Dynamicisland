@@ -1,6 +1,7 @@
 package com.example.dynamicisland
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,20 +19,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-// === Warna ===
+// ============ WARNA ============
 private val IslandBlack = Color(0xFF0A0A0A)
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
 private val SpotifyGreen = Color(0xFF1DB954)
+private val CameraDotGreen = Color(0xFF00E676)
+private val AvatarBg = Color(0xFF2C2C2E)
 
+// ============ MAIN UI ============
 @Composable
 fun DynamicIslandUI() {
     val mode = IslandState.mode.value
@@ -78,7 +85,7 @@ fun DynamicIslandUI() {
     }
 }
 
-/* ---------------- IDLE ---------------- */
+/* ================= IDLE ================= */
 @Composable
 private fun IdleContent() {
     Row(
@@ -87,39 +94,107 @@ private fun IdleContent() {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Box(
-            Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF00E676))
+            Modifier.size(10.dp).clip(CircleShape).background(CameraDotGreen)
         )
-        Text("• • •", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+        Text(
+            "• • •",
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 12.sp
+        )
     }
 }
 
-/* ---------------- MUSIC ---------------- */
+/* ================= MUSIC ================= */
 @Composable
 private fun MusicContent() {
+    val music = IslandState.musicInfo.value
+
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Album art / icon musik
         Box(
-            Modifier.size(42.dp).clip(CircleShape).background(SpotifyGreen),
+            Modifier.size(46.dp).clip(CircleShape).background(SpotifyGreen),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.MusicNote, null, tint = Color.White)
+            val art = music.albumArt
+            if (art != null && !art.isRecycled) {
+                Image(
+                    bitmap = art.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                )
+            } else {
+                Icon(
+                    Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        Column {
+
+        Spacer(Modifier.width(10.dp))
+
+        // Judul + artist
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Now Playing",
+                text = music.title.ifEmpty { "Tidak ada lagu" },
                 color = Color.White,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Text("Lagu favoritmu 🎵", color = Color.Gray, fontSize = 11.sp)
+            Text(
+                text = music.artist.ifEmpty { "—" },
+                color = Color.Gray,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Equalizer animasi kalau lagu playing
+        if (music.isPlaying) {
+            EqualizerBars()
         }
     }
 }
 
-/* ---------------- INCOMING CALL ---------------- */
+@Composable
+private fun EqualizerBars() {
+    val infinite = rememberInfiniteTransition(label = "eq")
+    val phase by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase"
+    )
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { i ->
+            val h = (6 + ((phase * 10 + i * 3) % 10)).dp
+            Box(
+                Modifier
+                    .padding(horizontal = 1.dp)
+                    .width(3.dp)
+                    .height(h)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(SpotifyGreen)
+            )
+        }
+    }
+}
+
+/* ================= INCOMING CALL ================= */
 @Composable
 private fun CallRingingContent(call: CallInfo) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -147,11 +222,11 @@ private fun CallRingingContent(call: CallInfo) {
                     .background(GreenAccept.copy(alpha = 0.25f))
             )
             Box(
-                Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF2C2C2E)),
+                Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    call.avatarInitial,
+                    text = call.avatarInitial,
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -163,14 +238,15 @@ private fun CallRingingContent(call: CallInfo) {
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                call.name,
+                text = call.name,
                 color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
-                "Panggilan masuk…",
+                text = "Panggilan masuk…",
                 color = Color.Gray,
                 fontSize = 11.sp,
                 maxLines = 1
@@ -191,7 +267,7 @@ private fun CallRingingContent(call: CallInfo) {
     }
 }
 
-/* ---------------- ACTIVE CALL ---------------- */
+/* ================= ACTIVE CALL ================= */
 @Composable
 private fun CallActiveContent(call: CallInfo) {
     var seconds by remember { mutableIntStateOf(0) }
@@ -224,22 +300,31 @@ private fun CallActiveContent(call: CallInfo) {
         ) {
             Icon(
                 Icons.Default.Call,
-                null,
+                contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(14.dp)
             )
         }
+
         Spacer(Modifier.width(10.dp))
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                call.name,
+                text = call.name,
                 color = Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Text(timeText, color = GreenAccept, fontSize = 10.sp)
+            Text(
+                text = timeText,
+                color = GreenAccept,
+                fontSize = 10.sp
+            )
         }
+
+        // Waveform audio
         Row(verticalAlignment = Alignment.CenterVertically) {
             repeat(4) { i ->
                 val h = (6 + (i * 3)) * wave
@@ -253,7 +338,9 @@ private fun CallActiveContent(call: CallInfo) {
                 )
             }
         }
+
         Spacer(Modifier.width(10.dp))
+
         CallButton(
             icon = Icons.Default.CallEnd,
             bg = RedDecline,
@@ -264,7 +351,7 @@ private fun CallActiveContent(call: CallInfo) {
     }
 }
 
-/* ---------------- Reusable ---------------- */
+/* ================= REUSABLE ================= */
 @Composable
 private fun CallButton(
     icon: ImageVector,
@@ -281,11 +368,16 @@ private fun CallButton(
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(iconSize))
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(iconSize)
+        )
     }
 }
 
-/* ---------------- Preview ---------------- */
+/* ================= PREVIEW ================= */
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
 @Composable
 fun PreviewIdle() {
@@ -300,6 +392,11 @@ fun PreviewIdle() {
 fun PreviewMusic() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.MUSIC
+        IslandState.musicInfo.value = MusicInfo(
+            title = "Perfect",
+            artist = "Ed Sheeran",
+            isPlaying = true
+        )
         DynamicIslandUI()
     }
 }
