@@ -8,6 +8,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +18,8 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -51,7 +54,7 @@ private val CameraDotGreen = Color(0xFF00E676)
 private val AvatarBg = Color(0xFF2C2C2E)
 
 // ============================================
-// MAIN UI
+// MAIN UI — Entry Point
 // ============================================
 @Composable
 fun DynamicIslandUI() {
@@ -63,7 +66,7 @@ fun DynamicIslandUI() {
     val effectiveMode = if (isCollapsed) IslandMode.IDLE else mode
 
     val targetWidth = when (effectiveMode) {
-        IslandMode.IDLE -> 130.dp
+        IslandMode.IDLE -> if (isCollapsed && !IslandState.musicInfo.value.isEmpty) 190.dp else 130.dp
         IslandMode.MUSIC -> 340.dp
         IslandMode.CALL_RINGING -> 360.dp
         IslandMode.CALL_ACTIVE -> 240.dp
@@ -94,23 +97,57 @@ fun DynamicIslandUI() {
             .height(height)
             .clip(RoundedCornerShape(percent = 50))
             .background(IslandBlack)
+            // ============ TAP / DOUBLE TAP / LONG PRESS ============
             .pointerInput(mode, isCollapsed) {
                 detectTapGestures(
-                    // 👆 TAP — collapse / expand / dismiss chat
+                    // 👆 TAP — Play/Pause kalau besar, Expand kalau kecil
                     onTap = {
+                        when (mode) {
+                            IslandMode.MUSIC -> {
+                                if (isCollapsed) {
+                                    IslandState.toggleCollapse()
+                                } else {
+                                    MediaControlBridge.playPause()
+                                }
+                            }
+                            IslandMode.CHAT -> IslandState.dismissChat()
+                            else -> {}
+                        }
+                    },
+                    // 👆👆 DOUBLE TAP — Collapse jadi pill
+                    onDoubleTap = {
                         when (mode) {
                             IslandMode.MUSIC -> IslandState.toggleCollapse()
                             IslandMode.CHAT -> IslandState.dismissChat()
                             else -> {}
                         }
                     },
-                    // 👇 TAHAN LAMA — buka app pemutar musik
+                    // 👇 LONG PRESS — Buka player
                     onLongPress = {
                         when (mode) {
                             IslandMode.MUSIC -> openMusicApp(context)
                             IslandMode.CALL_ACTIVE -> openDialer(context)
                             else -> {}
                         }
+                    }
+                )
+            }
+            // ============ SWIPE KIRI / KANAN ============
+            .pointerInput(mode) {
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDrag = 0f },
+                    onDragEnd = {
+                        if (mode == IslandMode.MUSIC) {
+                            when {
+                                totalDrag < -80f -> MediaControlBridge.skipPrevious()  // 👈 kiri = PREV
+                                totalDrag > 80f -> MediaControlBridge.skipNext()       // 👉 kanan = NEXT
+                            }
+                        }
+                        totalDrag = 0f
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        totalDrag += dragAmount
                     }
                 )
             },
@@ -138,7 +175,9 @@ fun DynamicIslandUI() {
 @Composable
 private fun IdleContent() {
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -154,11 +193,13 @@ private fun IdleContent() {
 private fun MiniMusicContent() {
     val music = IslandState.musicInfo.value
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Album art mini yang berputar
+        // Album art mini berputar
         RotatingAlbumArt(
             size = 20.dp,
             iconSize = 11.dp,
@@ -166,6 +207,7 @@ private fun MiniMusicContent() {
             albumArt = music.albumArt
         )
 
+        // Equalizer mini / icon pause
         if (music.isPlaying) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val heights = listOf(5.dp, 9.dp, 5.dp)
@@ -180,6 +222,13 @@ private fun MiniMusicContent() {
                     )
                 }
             }
+        } else {
+            Icon(
+                Icons.Default.Pause,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.size(12.dp)
+            )
         }
     }
 }
@@ -191,7 +240,9 @@ private fun MiniMusicContent() {
 private fun MusicContent() {
     val music = IslandState.musicInfo.value
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Album art berputar
@@ -224,7 +275,17 @@ private fun MusicContent() {
 
         Spacer(Modifier.width(8.dp))
 
-        if (music.isPlaying) EqualizerBars()
+        // Equalizer atau icon pause
+        if (music.isPlaying) {
+            EqualizerBars()
+        } else {
+            Icon(
+                Icons.Default.Pause,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.5f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
@@ -244,7 +305,7 @@ private fun RotatingAlbumArt(
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 8000,  // 8 detik per putaran penuh
+                durationMillis = 8000,
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
@@ -252,7 +313,6 @@ private fun RotatingAlbumArt(
         label = "rotation"
     )
 
-    // Kalau lagu pause, rotasi berhenti di posisi 0
     val currentRotation = if (isPlaying) rotation else 0f
 
     Box(
@@ -318,7 +378,9 @@ private fun EqualizerBars() {
 private fun ChatContent() {
     val chat = IslandState.chatInfo.value
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -377,7 +439,9 @@ private fun CallRingingContent(call: CallInfo) {
     )
 
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -457,7 +521,9 @@ private fun CallActiveContent(call: CallInfo) {
     )
 
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -465,7 +531,8 @@ private fun CallActiveContent(call: CallInfo) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Default.Call, null,
+                Icons.Default.Call,
+                contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(14.dp)
             )
@@ -507,7 +574,7 @@ private fun CallActiveContent(call: CallInfo) {
 }
 
 // ============================================
-// REUSABLE — tombol call bulat
+// REUSABLE — Tombol Call
 // ============================================
 @Composable
 private fun CallButton(
@@ -535,7 +602,7 @@ private fun CallButton(
 }
 
 // ============================================
-// HELPER — buka app pemutar musik
+// HELPER — Buka app pemutar musik
 // ============================================
 private fun openMusicApp(context: Context) {
     val packageName = IslandState.musicInfo.value.packageName
@@ -558,12 +625,26 @@ private fun openMusicApp(context: Context) {
 
     // 2. Fallback: coba app musik populer
     val fallbackPackages = listOf(
+        // Streaming
         "com.spotify.music",
         "com.google.android.apps.youtube.music",
         "com.apple.android.music",
-        "com.soundcloud.android",
-        "com.amazon.mp3",
-        "deezer.android.app"
+        // Offline players
+        "in.krosbits.musicolet",
+        "com.maxmpz.audioplayer",
+        "com.aimp.player",
+        "org.videolan.vlc",
+        "com.kodarkooperativet.blackplayerfree",
+        "code.name.monkey.retromusic",
+        // Player bawaan
+        "com.miui.player",
+        "com.samsung.android.music",
+        "com.sec.android.app.music",
+        "com.oppo.music",
+        "com.coloros.music",
+        "com.vivo.music",
+        "com.google.android.music",
+        "com.android.music"
     )
 
     for (pkg in fallbackPackages) {
@@ -594,7 +675,7 @@ private fun openMusicApp(context: Context) {
 }
 
 // ============================================
-// HELPER — buka dialer
+// HELPER — Buka dialer
 // ============================================
 private fun openDialer(context: Context) {
     try {
