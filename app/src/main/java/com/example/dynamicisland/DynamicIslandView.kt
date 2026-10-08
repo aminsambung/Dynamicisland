@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +22,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-// ============ WARNA ============
+// ============================================
+// WARNA TEMA
+// ============================================
 private val IslandBlack = Color(0xFF0A0A0A)
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
@@ -38,19 +42,25 @@ private val SpotifyGreen = Color(0xFF1DB954)
 private val CameraDotGreen = Color(0xFF00E676)
 private val AvatarBg = Color(0xFF2C2C2E)
 
-// ============ MAIN UI ============
+// ============================================
+// MAIN UI — Entry point
+// ============================================
 @Composable
 fun DynamicIslandUI() {
     val mode = IslandState.mode.value
     val call = IslandState.callInfo.value
+    val isCollapsed = IslandState.shouldShowCollapsed()
 
-    val targetWidth = when (mode) {
+    // Kalau mode MUSIC tapi user tap collapse → tampilkan sebagai IDLE (mini)
+    val effectiveMode = if (isCollapsed) IslandMode.IDLE else mode
+
+    val targetWidth = when (effectiveMode) {
         IslandMode.IDLE -> 130.dp
         IslandMode.MUSIC -> 340.dp
         IslandMode.CALL_RINGING -> 360.dp
         IslandMode.CALL_ACTIVE -> 240.dp
     }
-    val targetHeight = when (mode) {
+    val targetHeight = when (effectiveMode) {
         IslandMode.IDLE -> 36.dp
         IslandMode.MUSIC -> 72.dp
         IslandMode.CALL_RINGING -> 100.dp
@@ -60,12 +70,12 @@ fun DynamicIslandUI() {
     val width by animateDpAsState(
         targetValue = targetWidth,
         animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f),
-        label = "w"
+        label = "width"
     )
     val height by animateDpAsState(
         targetValue = targetHeight,
         animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f),
-        label = "h"
+        label = "height"
     )
 
     Box(
@@ -73,11 +83,28 @@ fun DynamicIslandUI() {
             .width(width)
             .height(height)
             .clip(RoundedCornerShape(percent = 50))
-            .background(IslandBlack),
+            .background(IslandBlack)
+            // 👇 Tap gesture: collapse/expand saat mode MUSIC
+            .pointerInput(mode, isCollapsed) {
+                detectTapGestures(
+                    onTap = {
+                        if (mode == IslandMode.MUSIC) {
+                            IslandState.toggleCollapse()
+                        }
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
-        when (mode) {
-            IslandMode.IDLE -> IdleContent()
+        when (effectiveMode) {
+            IslandMode.IDLE -> {
+                // Kalau collapsed tapi musik masih playing → tampilkan mini music
+                if (isCollapsed && !IslandState.musicInfo.value.isEmpty) {
+                    MiniMusicContent()
+                } else {
+                    IdleContent()
+                }
+            }
             IslandMode.MUSIC -> MusicContent()
             IslandMode.CALL_RINGING -> CallRingingContent(call)
             IslandMode.CALL_ACTIVE -> CallActiveContent(call)
@@ -85,16 +112,23 @@ fun DynamicIslandUI() {
     }
 }
 
-/* ================= IDLE ================= */
+// ============================================
+// IDLE — pill kecil tanpa musik
+// ============================================
 @Composable
 private fun IdleContent() {
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Box(
-            Modifier.size(10.dp).clip(CircleShape).background(CameraDotGreen)
+            Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(CameraDotGreen)
         )
         Text(
             "• • •",
@@ -104,18 +138,26 @@ private fun IdleContent() {
     }
 }
 
-/* ================= MUSIC ================= */
+// ============================================
+// MINI MUSIC — versi kecil saat collapsed
+// ============================================
 @Composable
-private fun MusicContent() {
+private fun MiniMusicContent() {
     val music = IslandState.musicInfo.value
 
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Album art / icon musik
+        // Album art mini
         Box(
-            Modifier.size(46.dp).clip(CircleShape).background(SpotifyGreen),
+            Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(SpotifyGreen),
             contentAlignment = Alignment.Center
         ) {
             val art = music.albumArt
@@ -124,7 +166,69 @@ private fun MusicContent() {
                     bitmap = art.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+            } else {
+                Icon(
+                    Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+        }
+
+        // Equalizer mini
+        if (music.isPlaying) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val heights = listOf(5.dp, 9.dp, 5.dp)
+                repeat(3) { i ->
+                    Box(
+                        Modifier
+                            .padding(horizontal = 1.dp)
+                            .width(2.dp)
+                            .height(heights[i])
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(SpotifyGreen)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ============================================
+// MUSIC — versi expand dengan judul + artist
+// ============================================
+@Composable
+private fun MusicContent() {
+    val music = IslandState.musicInfo.value
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Album art / icon musik
+        Box(
+            Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(SpotifyGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            val art = music.albumArt
+            if (art != null && !art.isRecycled) {
+                Image(
+                    bitmap = art.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
                 )
             } else {
                 Icon(
@@ -159,7 +263,7 @@ private fun MusicContent() {
 
         Spacer(Modifier.width(8.dp))
 
-        // Equalizer animasi kalau lagu playing
+        // Equalizer animasi
         if (music.isPlaying) {
             EqualizerBars()
         }
@@ -194,7 +298,9 @@ private fun EqualizerBars() {
     }
 }
 
-/* ================= INCOMING CALL ================= */
+// ============================================
+// CALL RINGING — panggilan masuk
+// ============================================
 @Composable
 private fun CallRingingContent(call: CallInfo) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -209,7 +315,9 @@ private fun CallRingingContent(call: CallInfo) {
     )
 
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar + pulse ring
@@ -222,7 +330,10 @@ private fun CallRingingContent(call: CallInfo) {
                     .background(GreenAccept.copy(alpha = 0.25f))
             )
             Box(
-                Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
+                Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(AvatarBg),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -267,7 +378,9 @@ private fun CallRingingContent(call: CallInfo) {
     }
 }
 
-/* ================= ACTIVE CALL ================= */
+// ============================================
+// CALL ACTIVE — sedang telepon dengan timer
+// ============================================
 @Composable
 private fun CallActiveContent(call: CallInfo) {
     var seconds by remember { mutableIntStateOf(0) }
@@ -291,11 +404,16 @@ private fun CallActiveContent(call: CallInfo) {
     )
 
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(26.dp).clip(CircleShape).background(GreenAccept),
+            Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(GreenAccept),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -351,7 +469,9 @@ private fun CallActiveContent(call: CallInfo) {
     }
 }
 
-/* ================= REUSABLE ================= */
+// ============================================
+// REUSABLE — tombol call bulat
+// ============================================
 @Composable
 private fun CallButton(
     icon: ImageVector,
@@ -377,21 +497,40 @@ private fun CallButton(
     }
 }
 
-/* ================= PREVIEW ================= */
+// ============================================
+// PREVIEW — Android Studio
+// ============================================
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
 @Composable
 fun PreviewIdle() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.IDLE
+        IslandState.isManuallyCollapsed.value = false
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewMusicExpanded() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.MUSIC
+        IslandState.isManuallyCollapsed.value = false
+        IslandState.musicInfo.value = MusicInfo(
+            title = "Perfect",
+            artist = "Ed Sheeran",
+            isPlaying = true
+        )
         DynamicIslandUI()
     }
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
 @Composable
-fun PreviewMusic() {
+fun PreviewMusicCollapsed() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.MUSIC
+        IslandState.isManuallyCollapsed.value = true
         IslandState.musicInfo.value = MusicInfo(
             title = "Perfect",
             artist = "Ed Sheeran",
