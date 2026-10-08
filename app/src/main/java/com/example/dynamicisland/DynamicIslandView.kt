@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,11 +40,12 @@ private val IslandBlack = Color(0xFF0A0A0A)
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
 private val SpotifyGreen = Color(0xFF1DB954)
+private val WhatsAppGreen = Color(0xFF25D366)
 private val CameraDotGreen = Color(0xFF00E676)
 private val AvatarBg = Color(0xFF2C2C2E)
 
 // ============================================
-// MAIN UI — Entry point
+// MAIN UI
 // ============================================
 @Composable
 fun DynamicIslandUI() {
@@ -51,7 +53,6 @@ fun DynamicIslandUI() {
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
 
-    // Kalau mode MUSIC tapi user tap collapse → tampilkan sebagai IDLE (mini)
     val effectiveMode = if (isCollapsed) IslandMode.IDLE else mode
 
     val targetWidth = when (effectiveMode) {
@@ -59,12 +60,14 @@ fun DynamicIslandUI() {
         IslandMode.MUSIC -> 340.dp
         IslandMode.CALL_RINGING -> 360.dp
         IslandMode.CALL_ACTIVE -> 240.dp
+        IslandMode.CHAT -> 340.dp
     }
     val targetHeight = when (effectiveMode) {
         IslandMode.IDLE -> 36.dp
         IslandMode.MUSIC -> 72.dp
         IslandMode.CALL_RINGING -> 100.dp
         IslandMode.CALL_ACTIVE -> 40.dp
+        IslandMode.CHAT -> 72.dp
     }
 
     val width by animateDpAsState(
@@ -84,12 +87,13 @@ fun DynamicIslandUI() {
             .height(height)
             .clip(RoundedCornerShape(percent = 50))
             .background(IslandBlack)
-            // 👇 Tap gesture: collapse/expand saat mode MUSIC
             .pointerInput(mode, isCollapsed) {
                 detectTapGestures(
                     onTap = {
-                        if (mode == IslandMode.MUSIC) {
-                            IslandState.toggleCollapse()
+                        when (mode) {
+                            IslandMode.MUSIC -> IslandState.toggleCollapse()
+                            IslandMode.CHAT -> IslandState.dismissChat()
+                            else -> {}
                         }
                     }
                 )
@@ -98,7 +102,6 @@ fun DynamicIslandUI() {
     ) {
         when (effectiveMode) {
             IslandMode.IDLE -> {
-                // Kalau collapsed tapi musik masih playing → tampilkan mini music
                 if (isCollapsed && !IslandState.musicInfo.value.isEmpty) {
                     MiniMusicContent()
                 } else {
@@ -108,56 +111,39 @@ fun DynamicIslandUI() {
             IslandMode.MUSIC -> MusicContent()
             IslandMode.CALL_RINGING -> CallRingingContent(call)
             IslandMode.CALL_ACTIVE -> CallActiveContent(call)
+            IslandMode.CHAT -> ChatContent()
         }
     }
 }
 
 // ============================================
-// IDLE — pill kecil tanpa musik
+// IDLE
 // ============================================
 @Composable
 private fun IdleContent() {
     Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Box(
-            Modifier
-                .size(10.dp)
-                .clip(CircleShape)
-                .background(CameraDotGreen)
-        )
-        Text(
-            "• • •",
-            color = Color.White.copy(alpha = 0.6f),
-            fontSize = 12.sp
-        )
+        Box(Modifier.size(10.dp).clip(CircleShape).background(CameraDotGreen))
+        Text("• • •", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
     }
 }
 
 // ============================================
-// MINI MUSIC — versi kecil saat collapsed
+// MINI MUSIC (saat collapsed)
 // ============================================
 @Composable
 private fun MiniMusicContent() {
     val music = IslandState.musicInfo.value
-
     Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Album art mini
         Box(
-            Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(SpotifyGreen),
+            Modifier.size(18.dp).clip(CircleShape).background(SpotifyGreen),
             contentAlignment = Alignment.Center
         ) {
             val art = music.albumArt
@@ -166,21 +152,16 @@ private fun MiniMusicContent() {
                     bitmap = art.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
+                    modifier = Modifier.fillMaxSize().clip(CircleShape)
                 )
             } else {
                 Icon(
-                    Icons.Default.MusicNote,
-                    contentDescription = null,
+                    Icons.Default.MusicNote, null,
                     tint = Color.White,
                     modifier = Modifier.size(11.dp)
                 )
             }
         }
-
-        // Equalizer mini
         if (music.isPlaying) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val heights = listOf(5.dp, 9.dp, 5.dp)
@@ -200,24 +181,17 @@ private fun MiniMusicContent() {
 }
 
 // ============================================
-// MUSIC — versi expand dengan judul + artist
+// MUSIC (expanded)
 // ============================================
 @Composable
 private fun MusicContent() {
     val music = IslandState.musicInfo.value
-
     Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Album art / icon musik
         Box(
-            Modifier
-                .size(46.dp)
-                .clip(CircleShape)
-                .background(SpotifyGreen),
+            Modifier.size(46.dp).clip(CircleShape).background(SpotifyGreen),
             contentAlignment = Alignment.Center
         ) {
             val art = music.albumArt
@@ -226,26 +200,20 @@ private fun MusicContent() {
                     bitmap = art.asImageBitmap(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
+                    modifier = Modifier.fillMaxSize().clip(CircleShape)
                 )
             } else {
                 Icon(
-                    Icons.Default.MusicNote,
-                    contentDescription = null,
+                    Icons.Default.MusicNote, null,
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
             }
         }
-
         Spacer(Modifier.width(10.dp))
-
-        // Judul + artist
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = music.title.ifEmpty { "Tidak ada lagu" },
+                music.title.ifEmpty { "Tidak ada lagu" },
                 color = Color.White,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -253,20 +221,15 @@ private fun MusicContent() {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = music.artist.ifEmpty { "—" },
+                music.artist.ifEmpty { "—" },
                 color = Color.Gray,
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-
         Spacer(Modifier.width(8.dp))
-
-        // Equalizer animasi
-        if (music.isPlaying) {
-            EqualizerBars()
-        }
+        if (music.isPlaying) EqualizerBars()
     }
 }
 
@@ -282,7 +245,6 @@ private fun EqualizerBars() {
         ),
         label = "phase"
     )
-
     Row(verticalAlignment = Alignment.CenterVertically) {
         repeat(3) { i ->
             val h = (6 + ((phase * 10 + i * 3) % 10)).dp
@@ -299,7 +261,57 @@ private fun EqualizerBars() {
 }
 
 // ============================================
-// CALL RINGING — panggilan masuk
+// CHAT (WhatsApp dll)
+// ============================================
+@Composable
+private fun ChatContent() {
+    val chat = IslandState.chatInfo.value
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Avatar pengirim
+        Box(
+            Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = chat.avatarInitial.ifEmpty { "?" },
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = chat.senderName.ifEmpty { "Pesan Baru" },
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = chat.message,
+                color = Color.Gray,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            Icons.Default.Chat,
+            contentDescription = null,
+            tint = WhatsAppGreen,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+// ============================================
+// CALL RINGING
 // ============================================
 @Composable
 private fun CallRingingContent(call: CallInfo) {
@@ -315,12 +327,9 @@ private fun CallRingingContent(call: CallInfo) {
     )
 
     Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar + pulse ring
         Box(contentAlignment = Alignment.Center) {
             Box(
                 Modifier
@@ -330,26 +339,21 @@ private fun CallRingingContent(call: CallInfo) {
                     .background(GreenAccept.copy(alpha = 0.25f))
             )
             Box(
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(AvatarBg),
+                Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = call.avatarInitial,
+                    call.avatarInitial,
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
-
         Spacer(Modifier.width(12.dp))
-
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = call.name,
+                call.name,
                 color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -357,13 +361,12 @@ private fun CallRingingContent(call: CallInfo) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "Panggilan masuk…",
+                "Panggilan masuk…",
                 color = Color.Gray,
                 fontSize = 11.sp,
                 maxLines = 1
             )
         }
-
         CallButton(
             icon = Icons.Default.CallEnd,
             bg = RedDecline,
@@ -379,7 +382,7 @@ private fun CallRingingContent(call: CallInfo) {
 }
 
 // ============================================
-// CALL ACTIVE — sedang telepon dengan timer
+// CALL ACTIVE
 // ============================================
 @Composable
 private fun CallActiveContent(call: CallInfo) {
@@ -404,45 +407,31 @@ private fun CallActiveContent(call: CallInfo) {
     )
 
     Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier
-                .size(26.dp)
-                .clip(CircleShape)
-                .background(GreenAccept),
+            Modifier.size(26.dp).clip(CircleShape).background(GreenAccept),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Default.Call,
-                contentDescription = null,
+                Icons.Default.Call, null,
                 tint = Color.White,
                 modifier = Modifier.size(14.dp)
             )
         }
-
         Spacer(Modifier.width(10.dp))
-
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = call.name,
+                call.name,
                 color = Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = timeText,
-                color = GreenAccept,
-                fontSize = 10.sp
-            )
+            Text(timeText, color = GreenAccept, fontSize = 10.sp)
         }
-
-        // Waveform audio
         Row(verticalAlignment = Alignment.CenterVertically) {
             repeat(4) { i ->
                 val h = (6 + (i * 3)) * wave
@@ -456,9 +445,7 @@ private fun CallActiveContent(call: CallInfo) {
                 )
             }
         }
-
         Spacer(Modifier.width(10.dp))
-
         CallButton(
             icon = Icons.Default.CallEnd,
             bg = RedDecline,
@@ -470,7 +457,7 @@ private fun CallActiveContent(call: CallInfo) {
 }
 
 // ============================================
-// REUSABLE — tombol call bulat
+// REUSABLE
 // ============================================
 @Composable
 private fun CallButton(
@@ -498,7 +485,7 @@ private fun CallButton(
 }
 
 // ============================================
-// PREVIEW — Android Studio
+// PREVIEWS
 // ============================================
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 150)
 @Composable
@@ -517,9 +504,7 @@ fun PreviewMusicExpanded() {
         IslandState.mode.value = IslandMode.MUSIC
         IslandState.isManuallyCollapsed.value = false
         IslandState.musicInfo.value = MusicInfo(
-            title = "Perfect",
-            artist = "Ed Sheeran",
-            isPlaying = true
+            title = "Perfect", artist = "Ed Sheeran", isPlaying = true
         )
         DynamicIslandUI()
     }
@@ -532,9 +517,22 @@ fun PreviewMusicCollapsed() {
         IslandState.mode.value = IslandMode.MUSIC
         IslandState.isManuallyCollapsed.value = true
         IslandState.musicInfo.value = MusicInfo(
-            title = "Perfect",
-            artist = "Ed Sheeran",
-            isPlaying = true
+            title = "Perfect", artist = "Ed Sheeran", isPlaying = true
+        )
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewChat() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.CHAT
+        IslandState.chatInfo.value = ChatInfo(
+            senderName = "Ibu",
+            message = "Sudah makan belum nak?",
+            avatarInitial = "I",
+            packageName = "com.whatsapp"
         )
         DynamicIslandUI()
     }
