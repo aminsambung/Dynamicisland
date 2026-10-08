@@ -188,6 +188,18 @@ fun MainScreen(activity: ComponentActivity) {
     }
 }
 
+Spacer(Modifier.height(8.dp))
+
+Button(
+    onClick = {
+        val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+        context.startActivity(intent)
+    },
+    modifier = Modifier.fillMaxWidth()
+) {
+    Text("3. Izinkan Akses Notifikasi (untuk lagu)")
+}
+
 @Composable
 private fun StatusRow(label: String, ok: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
