@@ -29,6 +29,7 @@ class DynamicIslandService : Service() {
         super.onCreate()
         startForegroundNotification()
         createOverlay()
+        AlarmScheduler.start(this)   // ⬅️ Start alarm scheduler
     }
 
     private fun startForegroundNotification() {
@@ -82,10 +83,8 @@ class DynamicIslandService : Service() {
             setViewTreeLifecycleOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
-                // ⬇️ Baca state isVisible dari IslandState
                 val isVisible = IslandState.isVisible.value
 
-                // ⬇️ Auto-hide: fade + slide keluar/masuk
                 AnimatedVisibility(
                     visible = isVisible,
                     enter = fadeIn() + slideInVertically { -it },
@@ -120,6 +119,7 @@ class DynamicIslandService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        AlarmScheduler.stop()   // ⬅️ Stop alarm scheduler
         if (::composeView.isInitialized) {
             try {
                 windowManager.removeView(composeView)
