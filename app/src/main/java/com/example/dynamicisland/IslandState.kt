@@ -68,6 +68,10 @@ object IslandState {
     val isManuallyCollapsed = mutableStateOf(false)
     val isVisible = mutableStateOf(false)
 
+    // ⬇️ BARU: Transparansi island (bisa diubah user via Settings)
+    val glassAlpha = mutableStateOf(IslandPreferences.DEFAULT_GLASS_ALPHA)
+    val borderAlpha = mutableStateOf(IslandPreferences.DEFAULT_BORDER_ALPHA)
+
     private val handler = Handler(Looper.getMainLooper())
     private var hideRunnable: Runnable? = null
     private var chatDismissRunnable: Runnable? = null
@@ -280,7 +284,14 @@ object IslandState {
     }
 
     fun shouldShowCollapsed(): Boolean {
-        return isManuallyCollapsed.value && mode.value == IslandMode.MUSIC
+        if (!isManuallyCollapsed.value) return false
+        return when (mode.value) {
+            IslandMode.MUSIC,
+            IslandMode.CHARGING,
+            IslandMode.NAVIGATION,
+            IslandMode.ALARM -> true
+            else -> false
+        }
     }
 
     // ==================== RESET ====================
