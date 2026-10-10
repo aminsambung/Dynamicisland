@@ -20,8 +20,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 🤖 Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # ❌ HAPUS: android-actions/setup-android@v3
+      # (runner GitHub sudah punya Android SDK)
 
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -31,15 +31,9 @@ jobs:
       - name: 🔑 Grant gradlew permission
         run: chmod +x ./gradlew
 
-      # ============================================
-      # BUILD RELEASE
-      # ============================================
       - name: 📦 Build Release APK (Split ABI)
         run: ./gradlew assembleRelease --stacktrace
 
-      # ============================================
-      # UPLOAD
-      # ============================================
       - name: 📤 Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
@@ -58,9 +52,4 @@ jobs:
         run: |
           echo "## 🎉 Release APK Built!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
           ls -lh app/build/outputs/apk/release/ || true
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Download & install yang sesuai HP kamu:**" >> $GITHUB_STEP_SUMMARY
-          echo "- 📱 HP modern (2020+): \`arm64-v8a\`" >> $GITHUB_STEP_SUMMARY
-          echo "- 📱 HP lama: \`armeabi-v7a\`" >> $GITHUB_STEP_SUMMARY
