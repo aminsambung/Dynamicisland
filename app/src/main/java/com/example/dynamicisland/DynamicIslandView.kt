@@ -351,7 +351,7 @@ private fun ChatContent() {
         }
         Spacer(Modifier.width(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Chat, null, tint = WhatsAppGreen, modifier = Modifier.size(20.dp))
+            Text("✉️", fontSize = 16.sp)
             Spacer(Modifier.width(4.dp))
             Text("›", color = Color.White.copy(alpha = 0.5f), fontSize = 18.sp,
                 fontWeight = FontWeight.Bold)
