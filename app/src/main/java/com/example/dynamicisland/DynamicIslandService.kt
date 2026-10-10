@@ -27,9 +27,14 @@ class DynamicIslandService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // ⬇️ Load preferensi user (transparansi)
+        IslandState.glassAlpha.value = IslandPreferences.getGlassAlpha(this)
+        IslandState.borderAlpha.value = IslandPreferences.getBorderAlpha(this)
+
         startForegroundNotification()
         createOverlay()
-        AlarmScheduler.start(this)   // ⬅️ Start alarm scheduler
+        AlarmScheduler.start(this)
     }
 
     private fun startForegroundNotification() {
@@ -102,7 +107,7 @@ class DynamicIslandService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,      // ← Lebar penuh
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -110,7 +115,7 @@ class DynamicIslandService : Service() {
                     or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP
+            gravity = Gravity.TOP                          // ← Cuma TOP
             y = 40
         }
 
@@ -119,7 +124,7 @@ class DynamicIslandService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        AlarmScheduler.stop()   // ⬅️ Stop alarm scheduler
+        AlarmScheduler.stop()
         if (::composeView.isInitialized) {
             try {
                 windowManager.removeView(composeView)
