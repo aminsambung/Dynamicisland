@@ -1,17 +1,17 @@
-name: Signed Release
+name: Build Release APK
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build-signed:
+  build-release:
+    name: 📦 Build Release APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
       - name: ☕ Setup JDK 17
@@ -20,29 +20,47 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
 
-      - name: 🔑 Decode Keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > app/keystore.jks
+      - name: 🔑 Grant gradlew permission
+        run: chmod +x ./gradlew
 
-      - name: 🔨 Build Signed Release
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=$PWD/app/keystore.jks \
-            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
-            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+      # ============================================
+      # BUILD RELEASE
+      # ============================================
+      - name: 📦 Build Release APK (Split ABI)
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: 📤 Upload Signed APK
+      # ============================================
+      # UPLOAD
+      # ============================================
+      - name: 📤 Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: dynamic-island-signed
-          path: app/build/outputs/apk/release/*.apk
+          name: dynamic-island-arm64-v8a
+          path: app/build/outputs/apk/release/*arm64-v8a*.apk
+          retention-days: 30
+
+      - name: 📤 Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamic-island-armeabi-v7a
+          path: app/build/outputs/apk/release/*armeabi-v7a*.apk
+          retention-days: 30
+
+      - name: 📊 Build Summary
+        run: |
+          echo "## 🎉 Release APK Built!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          ls -lh app/build/outputs/apk/release/ || true
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Download & install yang sesuai HP kamu:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 HP modern (2020+): \`arm64-v8a\`" >> $GITHUB_STEP_SUMMARY
+          echo "- 📱 HP lama: \`armeabi-v7a\`" >> $GITHUB_STEP_SUMMARY
