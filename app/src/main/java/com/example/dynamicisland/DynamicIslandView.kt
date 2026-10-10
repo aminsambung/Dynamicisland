@@ -14,11 +14,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +24,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -43,11 +37,11 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 // ============================================
-// WARNA TEMA — GLASSMORPHISM
+// WARNA DASAR — Alpha dihitung dinamis dari IslandState
 // ============================================
-private val IslandGlassTop = Color(0xCC1A1A1A)
-private val IslandGlassBottom = Color(0xAA0A0A0A)
-private val IslandBorderColor = Color(0x14FFFFFF)
+private val IslandBaseTop = Color(0xFF1A1A1A)
+private val IslandBaseBottom = Color(0xFF0A0A0A)
+private val IslandBorderBase = Color(0xFFFFFFFF)
 
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
@@ -70,7 +64,10 @@ fun DynamicIslandUI() {
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
 
-    // ============ UKURAN ============
+    // ⬇️ Baca alpha dinamis
+    val glassAlpha = IslandState.glassAlpha.value
+    val borderAlpha = IslandState.borderAlpha.value
+
     val targetWidth = when {
         isCollapsed -> when (mode) {
             IslandMode.CHARGING -> 130.dp
@@ -112,32 +109,33 @@ fun DynamicIslandUI() {
         label = "height"
     )
 
-    // ============================================
-    // WRAPPER FULL WIDTH — biar pill selalu di tengah
-    // ============================================
+    // WRAPPER FULL WIDTH — biar pill selalu center
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight(),
         contentAlignment = Alignment.TopCenter
     ) {
-        // ============ ISLAND UTAMA ============
         Box(
             modifier = Modifier
                 .width(width)
                 .height(height)
                 .clip(RoundedCornerShape(percent = 50))
+                // ⬇️ BACKGROUND DENGAN ALPHA DINAMIS
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(IslandGlassTop, IslandGlassBottom)
+                        colors = listOf(
+                            IslandBaseTop.copy(alpha = glassAlpha),
+                            IslandBaseBottom.copy(alpha = glassAlpha * 0.85f)
+                        )
                     )
                 )
+                // ⬇️ BORDER DENGAN ALPHA DINAMIS
                 .border(
                     width = 0.5.dp,
-                    color = IslandBorderColor,
+                    color = IslandBorderBase.copy(alpha = borderAlpha),
                     shape = RoundedCornerShape(percent = 50)
                 )
-                // ============ TAP / DOUBLE TAP / LONG PRESS ============
                 .pointerInput(mode, isCollapsed) {
                     detectTapGestures(
                         onTap = {
@@ -185,9 +183,7 @@ fun DynamicIslandUI() {
                                 IslandMode.MUSIC,
                                 IslandMode.CHARGING,
                                 IslandMode.NAVIGATION,
-                                IslandMode.ALARM -> {
-                                    IslandState.toggleCollapse()
-                                }
+                                IslandMode.ALARM -> IslandState.toggleCollapse()
                                 IslandMode.CHAT -> IslandState.dismissChat()
                                 else -> {}
                             }
@@ -201,7 +197,6 @@ fun DynamicIslandUI() {
                         }
                     )
                 }
-                // ============ SWIPE ============
                 .pointerInput(mode) {
                     var totalDrag = 0f
                     detectHorizontalDragGestures(
@@ -232,7 +227,6 @@ fun DynamicIslandUI() {
                 },
             contentAlignment = Alignment.Center
         ) {
-            // ============ KONTEN ============
             if (isCollapsed) {
                 when (mode) {
                     IslandMode.MUSIC -> MiniMusicContent()
@@ -283,7 +277,7 @@ private fun MiniMusicContent() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        RotatingAlbumArt(20.dp, 11.dp, music.isPlaying, music.albumArt)
+        RotatingAlbumArt(20.dp, music.isPlaying, music.albumArt)
         if (music.isPlaying) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val heights = listOf(5.dp, 9.dp, 5.dp)
@@ -315,12 +309,8 @@ private fun MiniChargingContent() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("⚡", fontSize = 12.sp, color = accentColor)
             Spacer(Modifier.width(4.dp))
-            Text(
-                "${info.percentage}%",
-                color = accentColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text("${info.percentage}%", color = accentColor, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold)
         }
         Box(Modifier.size(6.dp).clip(CircleShape).background(accentColor))
     }
@@ -332,28 +322,20 @@ private fun MiniChargingContent() {
 @Composable
 private fun MiniNavigationContent() {
     val nav = IslandState.navigationInfo.value
-
     Row(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(16.dp).clip(CircleShape).background(NavGreen),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(16.dp).clip(CircleShape).background(NavGreen),
+                contentAlignment = Alignment.Center) {
                 Text("▲", color = Color.White, fontSize = 8.sp)
             }
             Spacer(Modifier.width(6.dp))
-            Text(
-                nav.distance.ifEmpty { nav.duration }.ifEmpty { nav.appName },
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(nav.distance.ifEmpty { nav.duration }.ifEmpty { nav.appName },
+                color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text("⬆", color = Color.White, fontSize = 12.sp)
     }
@@ -366,7 +348,6 @@ private fun MiniNavigationContent() {
 private fun MiniAlarmContent() {
     val alarm = IslandState.alarmInfo.value
     val isRinging = alarm.isRinging || alarm.minutesUntil <= 0
-
     val accentColor = when {
         isRinging -> RedDecline
         alarm.minutesUntil <= 1 -> RedDecline
@@ -376,16 +357,11 @@ private fun MiniAlarmContent() {
 
     val infinite = rememberInfiniteTransition(label = "bell_mini")
     val pulse by infinite.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.15f,
+        initialValue = 0.9f, targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (isRinging) 500 else 1000,
-                easing = FastOutSlowInEasing
-            ),
+            animation = tween(if (isRinging) 500 else 1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
+        ), label = "pulse"
     )
 
     Row(
@@ -394,42 +370,21 @@ private fun MiniAlarmContent() {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(16.dp).clip(CircleShape).background(accentColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "⏰",
-                    fontSize = 9.sp,
-                    modifier = Modifier.graphicsLayer {
-                        scaleX = pulse
-                        scaleY = pulse
-                    }
-                )
+            Box(Modifier.size(16.dp).clip(CircleShape).background(accentColor),
+                contentAlignment = Alignment.Center) {
+                Text("⏰", fontSize = 9.sp,
+                    modifier = Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse })
             }
             Spacer(Modifier.width(6.dp))
-            Text(
-                alarm.time.ifEmpty { "—" },
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(alarm.time.ifEmpty { "—" }, color = Color.White, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold)
             if (alarm.minutesUntil > 0) {
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    "${alarm.minutesUntil}m",
-                    color = accentColor,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text("${alarm.minutesUntil}m", color = accentColor, fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold)
             } else if (isRinging) {
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    "NOW!",
-                    color = accentColor,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("NOW!", color = accentColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
         Text("🔔", fontSize = 12.sp)
@@ -446,20 +401,13 @@ private fun MusicContent() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RotatingAlbumArt(46.dp, 24.dp, music.isPlaying, music.albumArt)
+        RotatingAlbumArt(46.dp, music.isPlaying, music.albumArt)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                music.title.ifEmpty { "Tidak ada lagu" },
-                color = Color.White, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                music.artist.ifEmpty { "—" },
-                color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            Text(music.title.ifEmpty { "Tidak ada lagu" }, color = Color.White, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(music.artist.ifEmpty { "—" }, color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         if (music.isPlaying) EqualizerBars()
@@ -470,7 +418,7 @@ private fun MusicContent() {
 // ROTATING ALBUM ART
 // ============================================
 @Composable
-private fun RotatingAlbumArt(size: Dp, iconSize: Dp, isPlaying: Boolean, albumArt: Bitmap?) {
+private fun RotatingAlbumArt(size: Dp, isPlaying: Boolean, albumArt: Bitmap?) {
     val infinite = rememberInfiniteTransition(label = "rotate")
     val rotation by infinite.animateFloat(
         initialValue = 0f, targetValue = 360f,
@@ -487,17 +435,10 @@ private fun RotatingAlbumArt(size: Dp, iconSize: Dp, isPlaying: Boolean, albumAr
         contentAlignment = Alignment.Center
     ) {
         if (albumArt != null && !albumArt.isRecycled) {
-            Image(
-                albumArt.asImageBitmap(), null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(CircleShape)
-            )
+            Image(albumArt.asImageBitmap(), null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(CircleShape))
         } else {
-            Icon(
-                Icons.Default.MusicNote, null,
-                tint = Color.White,
-                modifier = Modifier.size(iconSize)
-            )
+            Text("🎵", fontSize = (size.value * 0.5f).sp, color = Color.White)
         }
     }
 }
@@ -518,16 +459,14 @@ private fun EqualizerBars() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         repeat(3) { i ->
             val h = (6 + ((phase * 10 + i * 3) % 10)).dp
-            Box(
-                Modifier.padding(horizontal = 1.dp).width(3.dp).height(h)
-                    .clip(RoundedCornerShape(2.dp)).background(SpotifyGreen)
-            )
+            Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height(h)
+                .clip(RoundedCornerShape(2.dp)).background(SpotifyGreen))
         }
     }
 }
 
 // ============================================
-// CHAT (emoji 💬)
+// CHAT 💬
 // ============================================
 @Composable
 private fun ChatContent() {
@@ -536,46 +475,30 @@ private fun ChatContent() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                chat.avatarInitial.ifEmpty { "?" },
-                color = Color.White, fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+        Box(Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
+            contentAlignment = Alignment.Center) {
+            Text(chat.avatarInitial.ifEmpty { "?" }, color = Color.White, fontSize = 20.sp,
+                fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                chat.senderName.ifEmpty { "Pesan Baru" },
-                color = Color.White, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                chat.message,
-                color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            Text(chat.senderName.ifEmpty { "Pesan Baru" }, color = Color.White, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(chat.message, color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("💬", fontSize = 16.sp)
             Spacer(Modifier.width(4.dp))
-            Text(
-                "›",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text("›", color = Color.White.copy(alpha = 0.5f), fontSize = 18.sp,
+                fontWeight = FontWeight.Bold)
         }
     }
 }
 
 // ============================================
-// CALL RINGING
+// CALL RINGING 📞
 // ============================================
 @Composable
 private fun CallRingingContent(call: CallInfo) {
@@ -592,42 +515,28 @@ private fun CallRingingContent(call: CallInfo) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Box(
-                Modifier.size(56.dp).scale(scale).clip(CircleShape)
-                    .background(GreenAccept.copy(alpha = 0.25f))
-            )
-            Box(
-                Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    call.avatarInitial,
-                    color = Color.White, fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            Box(Modifier.size(56.dp).scale(scale).clip(CircleShape)
+                .background(GreenAccept.copy(alpha = 0.25f)))
+            Box(Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
+                contentAlignment = Alignment.Center) {
+                Text(call.avatarInitial, color = Color.White, fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold)
             }
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                call.name,
-                color = Color.White, fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(call.name, color = Color.White, fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Panggilan masuk", color = Color.Gray, fontSize = 11.sp, maxLines = 1)
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    "›",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold
-                )
+                Text("›", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold)
             }
         }
-        CallButton(Icons.Default.CallEnd, RedDecline) { IslandState.endCall() }
+        CallButtonEmoji("📵", RedDecline) { IslandState.endCall() }
         Spacer(Modifier.width(8.dp))
-        CallButton(Icons.Default.Call, GreenAccept) { IslandState.acceptCall() }
+        CallButtonEmoji("📞", GreenAccept) { IslandState.acceptCall() }
     }
 }
 
@@ -653,41 +562,30 @@ private fun CallActiveContent(call: CallInfo) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier.size(26.dp).clip(CircleShape).background(GreenAccept),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.Call, null,
-                tint = Color.White, modifier = Modifier.size(14.dp)
-            )
+        Box(Modifier.size(26.dp).clip(CircleShape).background(GreenAccept),
+            contentAlignment = Alignment.Center) {
+            Text("📞", fontSize = 12.sp)
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                call.name,
-                color = Color.White, fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(call.name, color = Color.White, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(timeText, color = GreenAccept, fontSize = 10.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             repeat(4) { i ->
                 val h = (6 + (i * 3)) * wave
-                Box(
-                    Modifier.padding(horizontal = 1.dp).width(3.dp).height(h.dp)
-                        .clip(RoundedCornerShape(2.dp)).background(GreenAccept)
-                )
+                Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height(h.dp)
+                    .clip(RoundedCornerShape(2.dp)).background(GreenAccept))
             }
         }
         Spacer(Modifier.width(10.dp))
-        CallButton(Icons.Default.CallEnd, RedDecline, 32.dp, 16.dp) { IslandState.endCall() }
+        CallButtonEmoji("📵", RedDecline, 32.dp) { IslandState.endCall() }
     }
 }
 
 // ============================================
-// CHARGING ALERT ⚡
+// CHARGING ⚡
 // ============================================
 @Composable
 private fun ChargingContent() {
@@ -708,23 +606,15 @@ private fun ChargingContent() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            Modifier.size(34.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "⚡",
-                fontSize = 16.sp, color = accentColor,
+        Box(Modifier.size(34.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center) {
+            Text("⚡", fontSize = 16.sp, color = accentColor,
                 modifier = Modifier.graphicsLayer {
                     if (!isFull) { scaleX = pulse; scaleY = pulse }
-                }
-            )
+                })
         }
         Spacer(Modifier.width(10.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StatItem(info.timeToFull.ifEmpty { "—" }, Color.White)
                 StatItem(if (info.voltage > 0) "%.1f V".format(info.voltage) else "—", Color.White)
@@ -741,10 +631,8 @@ private fun ChargingContent() {
             }
         }
         Spacer(Modifier.width(6.dp))
-        Box(
-            Modifier.size(22.dp).clip(CircleShape).background(OrangeAccent.copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(Modifier.size(22.dp).clip(CircleShape).background(OrangeAccent.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center) {
             Text("›", color = OrangeAccent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
@@ -752,15 +640,12 @@ private fun ChargingContent() {
 
 @Composable
 private fun StatItem(value: String, color: Color, bold: Boolean = false) {
-    Text(
-        value, color = color, fontSize = 11.sp,
-        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
-        maxLines = 1
-    )
+    Text(value, color = color, fontSize = 11.sp,
+        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
 }
 
 // ============================================
-// NAVIGATION BAR 🗺️
+// NAVIGATION 🗺️
 // ============================================
 @Composable
 private fun NavigationContent() {
@@ -771,42 +656,30 @@ private fun NavigationContent() {
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(20.dp).clip(CircleShape).background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(20.dp).clip(CircleShape).background(Color.White),
+                contentAlignment = Alignment.Center) {
                 Text("▲", color = NavGreen, fontSize = 10.sp)
             }
             Spacer(Modifier.width(8.dp))
-            Text(
-                "${nav.appName} · ${nav.duration} · ${nav.distanceTotal} · ${nav.eta}",
+            Text("${nav.appName} · ${nav.duration} · ${nav.distanceTotal} · ${nav.eta}",
                 color = Color.White, fontSize = 10.sp, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
-            )
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Text("now", color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp)
             Spacer(Modifier.width(6.dp))
             Text("⬆", color = Color.White, fontSize = 16.sp)
         }
         Column {
-            Text(
-                nav.distance, color = Color.White,
-                fontSize = 14.sp, fontWeight = FontWeight.Bold
-            )
-            Text(
-                nav.instruction, color = Color.White, fontSize = 12.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            Text(nav.distance, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(nav.instruction, color = Color.White, fontSize = 12.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
-            Text(
-                "Exit navigation",
-                color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp
-            )
+            Text("Exit navigation", color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp)
         }
     }
 }
 
 // ============================================
-// ALARM CONTENT ⏰
+// ALARM ⏰
 // ============================================
 @Composable
 private fun AlarmContent() {
@@ -825,39 +698,25 @@ private fun AlarmContent() {
         initialValue = if (isRinging) 0.9f else 0.95f,
         targetValue = if (isRinging) 1.25f else 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = if (isRinging) 500 else 1000,
-                easing = FastOutSlowInEasing
-            ),
+            animation = tween(if (isRinging) 500 else 1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
+        ), label = "pulse"
     )
 
     Row(
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier.size(46.dp).clip(CircleShape).background(accentColor),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "⏰", fontSize = 22.sp,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = pulse
-                    scaleY = pulse
-                }
-            )
+        Box(Modifier.size(46.dp).clip(CircleShape).background(accentColor),
+            contentAlignment = Alignment.Center) {
+            Text("⏰", fontSize = 22.sp,
+                modifier = Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse })
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    alarm.time.ifEmpty { "—" },
-                    color = Color.White, fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold, maxLines = 1
-                )
+                Text(alarm.time.ifEmpty { "—" }, color = Color.White, fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 1)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = when {
@@ -865,47 +724,39 @@ private fun AlarmContent() {
                         alarm.minutesUntil > 0 -> "${alarm.minutesUntil} min"
                         else -> ""
                     },
-                    color = accentColor, fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold, maxLines = 1
+                    color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
                 )
             }
-            Text(
-                alarm.label.ifEmpty { "Alarm" },
-                color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
+            Text(alarm.label.ifEmpty { "Alarm" }, color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "🔔", fontSize = 18.sp,
+            Text("🔔", fontSize = 18.sp,
                 modifier = Modifier.graphicsLayer {
                     if (isRinging) { scaleX = pulse; scaleY = pulse }
-                }
-            )
+                })
             Spacer(Modifier.width(4.dp))
-            Text(
-                "›",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 18.sp, fontWeight = FontWeight.Bold
-            )
+            Text("›", color = Color.White.copy(alpha = 0.5f), fontSize = 18.sp,
+                fontWeight = FontWeight.Bold)
         }
     }
 }
 
 // ============================================
-// REUSABLE — Tombol Call
+// REUSABLE — Tombol Call (emoji)
 // ============================================
 @Composable
-private fun CallButton(
-    icon: ImageVector, bg: Color, size: Dp = 40.dp,
-    iconSize: Dp = 20.dp, onClick: () -> Unit
+private fun CallButtonEmoji(
+    emoji: String, bg: Color, size: Dp = 40.dp,
+    onClick: () -> Unit
 ) {
     Box(
         Modifier.size(size).clip(CircleShape).background(bg).clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(iconSize))
+        Text(emoji, fontSize = (size.value * 0.45f).sp)
     }
 }
 
@@ -978,12 +829,8 @@ fun PreviewCharging() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.CHARGING
         IslandState.chargingInfo.value = ChargingInfo(
-            percentage = 34,
-            voltage = 3.8f,
-            temperature = 40.3f,
-            timeToFull = "05:59",
-            chargeType = "USB",
-            isCharging = true
+            percentage = 34, voltage = 3.8f, temperature = 40.3f,
+            timeToFull = "05:59", chargeType = "USB", isCharging = true
         )
         DynamicIslandUI()
     }
@@ -995,10 +842,8 @@ fun PreviewAlarm() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.ALARM
         IslandState.alarmInfo.value = AlarmInfo(
-            time = "06:00",
-            label = "Bangun pagi",
-            minutesUntil = 10,
-            isRinging = false
+            time = "06:00", label = "Bangun pagi",
+            minutesUntil = 10, isRinging = false
         )
         DynamicIslandUI()
     }
