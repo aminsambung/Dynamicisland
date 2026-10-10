@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -94,7 +95,7 @@ fun MainScreen() {
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("2. Izinkan Akses Notifikasi (WA & lagu)")
+                    Text("2. Izinkan Akses Notifikasi")
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -135,17 +136,97 @@ fun MainScreen() {
 
         Spacer(Modifier.height(24.dp))
 
+        // ================= APPEARANCE CARD (BARU) =================
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("🎨 Tampilan", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Atur transparansi island secara real-time",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.height(16.dp))
+
+                // Slider transparansi glass
+                Text(
+                    "Transparansi Island",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${(IslandState.glassAlpha.value * 100).toInt()}% " +
+                            when {
+                                IslandState.glassAlpha.value > 0.9f -> "(Solid)"
+                                IslandState.glassAlpha.value > 0.6f -> "(Normal)"
+                                IslandState.glassAlpha.value > 0.4f -> "(Tembus)"
+                                else -> "(Glass)"
+                            },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Slider(
+                    value = IslandState.glassAlpha.value,
+                    onValueChange = { newValue ->
+                        IslandState.glassAlpha.value = newValue
+                        IslandPreferences.setGlassAlpha(context, newValue)
+                    },
+                    valueRange = 0.1f..1f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Slider border
+                Text(
+                    "Ketebalan Border",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${(IslandState.borderAlpha.value * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Slider(
+                    value = IslandState.borderAlpha.value,
+                    onValueChange = { newValue ->
+                        IslandState.borderAlpha.value = newValue
+                        IslandPreferences.setBorderAlpha(context, newValue)
+                    },
+                    valueRange = 0f..0.5f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                // Preset cepat
+                Text("Preset Cepat:", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PresetButton("Solid", 1f, context, Modifier.weight(1f))
+                    PresetButton("Normal", 0.67f, context, Modifier.weight(1f))
+                    PresetButton("Tembus", 0.5f, context, Modifier.weight(1f))
+                    PresetButton("Glass", 0.33f, context, Modifier.weight(1f))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
         // ================= SIMULASI CARD =================
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("🎬 Simulasi", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(12.dp))
 
-                // Simulasi Panggilan
                 Button(
                     onClick = {
                         IslandState.showIncomingCall(
-                            CallInfo("Budi Santoso", "+62 812-3456-7890", "B")
+                            CallInfo("Budi Santoso", "+62 812-3456-7890", "B", "com.whatsapp")
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -153,13 +234,10 @@ fun MainScreen() {
                         containerColor = Color(0xFF30D158)
                     ),
                     enabled = serviceRunning
-                ) {
-                    Text("📞 Panggilan Masuk")
-                }
+                ) { Text("📞 Panggilan Masuk") }
 
                 Spacer(Modifier.height(8.dp))
 
-                // Simulasi Chat WA
                 Button(
                     onClick = {
                         IslandState.showChat(
@@ -176,13 +254,10 @@ fun MainScreen() {
                         containerColor = Color(0xFF25D366)
                     ),
                     enabled = serviceRunning
-                ) {
-                    Text("💬 Pesan WhatsApp")
-                }
+                ) { Text("💬 Pesan WhatsApp") }
 
                 Spacer(Modifier.height(8.dp))
 
-                // Simulasi Musik
                 Button(
                     onClick = {
                         IslandState.updateMusic(
@@ -198,20 +273,15 @@ fun MainScreen() {
                         containerColor = Color(0xFF1DB954)
                     ),
                     enabled = serviceRunning
-                ) {
-                    Text("🎵 Simulasi Lagu")
-                }
+                ) { Text("🎵 Simulasi Lagu") }
 
                 Spacer(Modifier.height(8.dp))
 
-                // Reset
                 OutlinedButton(
                     onClick = { IslandState.reset() },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = serviceRunning
-                ) {
-                    Text("↩️ Reset ke Idle")
-                }
+                ) { Text("↩️ Reset ke Idle") }
             }
         }
 
@@ -219,10 +289,9 @@ fun MainScreen() {
 
         Text(
             "Tips:\n" +
-                "1. Aktifkan izin Overlay & Notifikasi\n" +
-                "2. Aktifkan service\n" +
-                "3. Play lagu di Spotify / terima WA\n" +
-                "4. Tap island untuk kecilkan 🎵",
+                    "• Aktifkan Overlay + Notifikasi\n" +
+                    "• Aktifkan service\n" +
+                    "• Geser slider untuk atur transparansi",
             style = MaterialTheme.typography.bodySmall,
             color = Color.Gray
         )
@@ -230,12 +299,38 @@ fun MainScreen() {
         Spacer(Modifier.height(40.dp))
     }
 
-    // Auto-refresh status overlay
     LaunchedEffect(Unit) {
         while (true) {
             hasOverlay = Settings.canDrawOverlays(context)
             delay(1000)
         }
+    }
+}
+
+@Composable
+private fun PresetButton(
+    label: String,
+    alpha: Float,
+    context: android.content.Context,
+    modifier: Modifier = Modifier
+) {
+    val isSelected = kotlin.math.abs(IslandState.glassAlpha.value - alpha) < 0.05f
+    OutlinedButton(
+        onClick = {
+            IslandState.glassAlpha.value = alpha
+            IslandPreferences.setGlassAlpha(context, alpha)
+        },
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+        colors = if (isSelected) {
+            ButtonDefaults.outlinedButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        } else {
+            ButtonDefaults.outlinedButtonColors()
+        }
+    ) {
+        Text(label, fontSize = 10.sp, maxLines = 1)
     }
 }
 
