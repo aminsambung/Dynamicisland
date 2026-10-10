@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -59,6 +58,7 @@ private val AvatarBg = Color(0xFF2C2C2E)
 private val ChargingGreen = Color(0xFF34C759)
 private val OrangeAccent = Color(0xFFFF9500)
 private val YellowAccent = Color(0xFFFFCC00)
+private val NavGreen = Color(0xFF1B5E20)
 
 // ============================================
 // MAIN UI
@@ -70,27 +70,35 @@ fun DynamicIslandUI() {
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
 
-    val effectiveMode = if (isCollapsed) IslandMode.IDLE else mode
-
-    val targetWidth = when (effectiveMode) {
-        IslandMode.IDLE -> if (isCollapsed && !IslandState.musicInfo.value.isEmpty) 190.dp else 130.dp
-        IslandMode.MUSIC -> 340.dp
-        IslandMode.CALL_RINGING -> 360.dp
-        IslandMode.CALL_ACTIVE -> 240.dp
-        IslandMode.CHAT -> 340.dp
-        IslandMode.CHARGING -> 340.dp
-        IslandMode.NAVIGATION -> 360.dp
-        IslandMode.ALARM -> 340.dp
+    // ============ UKURAN ============
+    val targetWidth = when {
+        isCollapsed -> when (mode) {
+            IslandMode.CHARGING -> 130.dp
+            IslandMode.NAVIGATION -> 150.dp
+            IslandMode.ALARM -> 150.dp
+            else -> 130.dp
+        }
+        mode == IslandMode.IDLE -> 130.dp
+        mode == IslandMode.MUSIC -> 340.dp
+        mode == IslandMode.CALL_RINGING -> 360.dp
+        mode == IslandMode.CALL_ACTIVE -> 240.dp
+        mode == IslandMode.CHAT -> 340.dp
+        mode == IslandMode.CHARGING -> 340.dp
+        mode == IslandMode.NAVIGATION -> 360.dp
+        mode == IslandMode.ALARM -> 340.dp
+        else -> 130.dp
     }
-    val targetHeight = when (effectiveMode) {
-        IslandMode.IDLE -> 36.dp
-        IslandMode.MUSIC -> 72.dp
-        IslandMode.CALL_RINGING -> 100.dp
-        IslandMode.CALL_ACTIVE -> 40.dp
-        IslandMode.CHAT -> 72.dp
-        IslandMode.CHARGING -> 72.dp
-        IslandMode.NAVIGATION -> 110.dp
-        IslandMode.ALARM -> 72.dp
+    val targetHeight = when {
+        isCollapsed -> 36.dp
+        mode == IslandMode.IDLE -> 36.dp
+        mode == IslandMode.MUSIC -> 72.dp
+        mode == IslandMode.CALL_RINGING -> 100.dp
+        mode == IslandMode.CALL_ACTIVE -> 40.dp
+        mode == IslandMode.CHAT -> 72.dp
+        mode == IslandMode.CHARGING -> 72.dp
+        mode == IslandMode.NAVIGATION -> 110.dp
+        mode == IslandMode.ALARM -> 72.dp
+        else -> 36.dp
     }
 
     val width by animateDpAsState(
@@ -104,109 +112,147 @@ fun DynamicIslandUI() {
         label = "height"
     )
 
+    // ============================================
+    // WRAPPER FULL WIDTH — biar pill selalu di tengah
+    // ============================================
     Box(
         modifier = Modifier
-            .width(width)
-            .height(height)
-            .clip(RoundedCornerShape(percent = 50))
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(IslandGlassTop, IslandGlassBottom)
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        // ============ ISLAND UTAMA ============
+        Box(
+            modifier = Modifier
+                .width(width)
+                .height(height)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(IslandGlassTop, IslandGlassBottom)
+                    )
                 )
-            )
-            .border(
-                width = 0.5.dp,
-                color = IslandBorderColor,
-                shape = RoundedCornerShape(percent = 50)
-            )
-            .pointerInput(mode, isCollapsed) {
-                detectTapGestures(
-                    onTap = {
-                        when (mode) {
-                            IslandMode.MUSIC -> {
-                                if (isCollapsed) IslandState.toggleCollapse()
-                                else MediaControlBridge.playPause()
-                            }
-                            IslandMode.CHAT -> {
-                                openApp(context, IslandState.chatInfo.value.packageName)
-                                IslandState.dismissChat()
-                            }
-                            IslandMode.CALL_RINGING -> {
-                                openApp(context, IslandState.callInfo.value.packageName)
-                                IslandState.dismissCall()
-                            }
-                            IslandMode.CALL_ACTIVE -> {
-                                openApp(context, IslandState.callInfo.value.packageName)
-                            }
-                            IslandMode.ALARM -> {
-                                openApp(context, IslandState.alarmInfo.value.packageName)
-                                IslandState.dismissAlarm()
-                            }
-                            IslandMode.IDLE -> {
-                                if (!IslandState.musicInfo.value.isEmpty) IslandState.showMusic()
-                            }
-                            else -> {}
-                        }
-                    },
-                    onDoubleTap = {
-                        when (mode) {
-                            IslandMode.MUSIC -> IslandState.toggleCollapse()
-                            IslandMode.CHAT -> IslandState.dismissChat()
-                            IslandMode.ALARM -> IslandState.dismissAlarm()
-                            else -> {}
-                        }
-                    },
-                    onLongPress = {
-                        when (mode) {
-                            IslandMode.MUSIC -> openMusicApp(context)
-                            IslandMode.CALL_ACTIVE -> openDialer(context)
-                            else -> {}
-                        }
-                    }
+                .border(
+                    width = 0.5.dp,
+                    color = IslandBorderColor,
+                    shape = RoundedCornerShape(percent = 50)
                 )
-            }
-            .pointerInput(mode) {
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onDragEnd = {
-                        when (mode) {
-                            IslandMode.MUSIC -> {
-                                when {
-                                    totalDrag < -80f -> MediaControlBridge.skipPrevious()
-                                    totalDrag > 80f -> MediaControlBridge.skipNext()
+                // ============ TAP / DOUBLE TAP / LONG PRESS ============
+                .pointerInput(mode, isCollapsed) {
+                    detectTapGestures(
+                        onTap = {
+                            if (isCollapsed) {
+                                IslandState.toggleCollapse()
+                            } else {
+                                when (mode) {
+                                    IslandMode.MUSIC -> MediaControlBridge.playPause()
+                                    IslandMode.CHAT -> {
+                                        openApp(context, IslandState.chatInfo.value.packageName)
+                                        IslandState.dismissChat()
+                                    }
+                                    IslandMode.CALL_RINGING -> {
+                                        openApp(context, IslandState.callInfo.value.packageName)
+                                        IslandState.dismissCall()
+                                    }
+                                    IslandMode.CALL_ACTIVE -> {
+                                        openApp(context, IslandState.callInfo.value.packageName)
+                                    }
+                                    IslandMode.ALARM -> {
+                                        openApp(context, IslandState.alarmInfo.value.packageName)
+                                        IslandState.dismissAlarm()
+                                    }
+                                    IslandMode.CHARGING -> {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_POWER_USAGE_SUMMARY)
+                                                .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    }
+                                    IslandMode.NAVIGATION -> {
+                                        openApp(context, IslandState.navigationInfo.value.packageName)
+                                    }
+                                    IslandMode.IDLE -> {
+                                        if (!IslandState.musicInfo.value.isEmpty) {
+                                            IslandState.showMusic()
+                                        }
+                                    }
+                                    else -> {}
                                 }
                             }
-                            IslandMode.CHAT -> {
-                                if (abs(totalDrag) > 80f) IslandState.dismissChat()
+                        },
+                        onDoubleTap = {
+                            when (mode) {
+                                IslandMode.MUSIC,
+                                IslandMode.CHARGING,
+                                IslandMode.NAVIGATION,
+                                IslandMode.ALARM -> {
+                                    IslandState.toggleCollapse()
+                                }
+                                IslandMode.CHAT -> IslandState.dismissChat()
+                                else -> {}
                             }
-                            IslandMode.CALL_RINGING -> {
-                                if (abs(totalDrag) > 80f) IslandState.dismissCall()
+                        },
+                        onLongPress = {
+                            when (mode) {
+                                IslandMode.MUSIC -> openMusicApp(context)
+                                IslandMode.CALL_ACTIVE -> openDialer(context)
+                                else -> {}
                             }
-                            IslandMode.ALARM -> {
-                                if (abs(totalDrag) > 80f) IslandState.dismissAlarm()
-                            }
-                            else -> {}
                         }
-                        totalDrag = 0f
-                    },
-                    onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount }
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        when (effectiveMode) {
-            IslandMode.IDLE -> {
-                if (isCollapsed && !IslandState.musicInfo.value.isEmpty) MiniMusicContent()
-                else IdleContent()
+                    )
+                }
+                // ============ SWIPE ============
+                .pointerInput(mode) {
+                    var totalDrag = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { totalDrag = 0f },
+                        onDragEnd = {
+                            when (mode) {
+                                IslandMode.MUSIC -> {
+                                    when {
+                                        totalDrag < -80f -> MediaControlBridge.skipPrevious()
+                                        totalDrag > 80f -> MediaControlBridge.skipNext()
+                                    }
+                                }
+                                IslandMode.CHAT -> {
+                                    if (abs(totalDrag) > 80f) IslandState.dismissChat()
+                                }
+                                IslandMode.CALL_RINGING -> {
+                                    if (abs(totalDrag) > 80f) IslandState.dismissCall()
+                                }
+                                IslandMode.ALARM -> {
+                                    if (abs(totalDrag) > 80f) IslandState.dismissAlarm()
+                                }
+                                else -> {}
+                            }
+                            totalDrag = 0f
+                        },
+                        onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            // ============ KONTEN ============
+            if (isCollapsed) {
+                when (mode) {
+                    IslandMode.MUSIC -> MiniMusicContent()
+                    IslandMode.CHARGING -> MiniChargingContent()
+                    IslandMode.NAVIGATION -> MiniNavigationContent()
+                    IslandMode.ALARM -> MiniAlarmContent()
+                    else -> IdleContent()
+                }
+            } else {
+                when (mode) {
+                    IslandMode.IDLE -> IdleContent()
+                    IslandMode.MUSIC -> MusicContent()
+                    IslandMode.CALL_RINGING -> CallRingingContent(call)
+                    IslandMode.CALL_ACTIVE -> CallActiveContent(call)
+                    IslandMode.CHAT -> ChatContent()
+                    IslandMode.CHARGING -> ChargingContent()
+                    IslandMode.NAVIGATION -> NavigationContent()
+                    IslandMode.ALARM -> AlarmContent()
+                }
             }
-            IslandMode.MUSIC -> MusicContent()
-            IslandMode.CALL_RINGING -> CallRingingContent(call)
-            IslandMode.CALL_ACTIVE -> CallActiveContent(call)
-            IslandMode.CHAT -> ChatContent()
-            IslandMode.CHARGING -> ChargingContent()
-            IslandMode.NAVIGATION -> NavigationContent()
-            IslandMode.ALARM -> AlarmContent()
         }
     }
 }
@@ -253,7 +299,145 @@ private fun MiniMusicContent() {
 }
 
 // ============================================
-// MUSIC
+// MINI CHARGING ⚡
+// ============================================
+@Composable
+private fun MiniChargingContent() {
+    val info = IslandState.chargingInfo.value
+    val isFull = info.isFull || info.percentage >= 100
+    val accentColor = if (isFull) Color(0xFF30D158) else ChargingGreen
+
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("⚡", fontSize = 12.sp, color = accentColor)
+            Spacer(Modifier.width(4.dp))
+            Text(
+                "${info.percentage}%",
+                color = accentColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Box(Modifier.size(6.dp).clip(CircleShape).background(accentColor))
+    }
+}
+
+// ============================================
+// MINI NAVIGATION 🗺️
+// ============================================
+@Composable
+private fun MiniNavigationContent() {
+    val nav = IslandState.navigationInfo.value
+
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(16.dp).clip(CircleShape).background(NavGreen),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("▲", color = Color.White, fontSize = 8.sp)
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(
+                nav.distance.ifEmpty { nav.duration }.ifEmpty { nav.appName },
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Text("⬆", color = Color.White, fontSize = 12.sp)
+    }
+}
+
+// ============================================
+// MINI ALARM ⏰
+// ============================================
+@Composable
+private fun MiniAlarmContent() {
+    val alarm = IslandState.alarmInfo.value
+    val isRinging = alarm.isRinging || alarm.minutesUntil <= 0
+
+    val accentColor = when {
+        isRinging -> RedDecline
+        alarm.minutesUntil <= 1 -> RedDecline
+        alarm.minutesUntil <= 5 -> YellowAccent
+        else -> OrangeAccent
+    }
+
+    val infinite = rememberInfiniteTransition(label = "bell_mini")
+    val pulse by infinite.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = if (isRinging) 500 else 1000,
+                easing = FastOutSlowInEasing
+            ),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(16.dp).clip(CircleShape).background(accentColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "⏰",
+                    fontSize = 9.sp,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = pulse
+                        scaleY = pulse
+                    }
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(
+                alarm.time.ifEmpty { "—" },
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (alarm.minutesUntil > 0) {
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "${alarm.minutesUntil}m",
+                    color = accentColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            } else if (isRinging) {
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "NOW!",
+                    color = accentColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        Text("🔔", fontSize = 12.sp)
+    }
+}
+
+// ============================================
+// MUSIC (expanded)
 // ============================================
 @Composable
 private fun MusicContent() {
@@ -265,10 +449,17 @@ private fun MusicContent() {
         RotatingAlbumArt(46.dp, 24.dp, music.isPlaying, music.albumArt)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(music.title.ifEmpty { "Tidak ada lagu" }, color = Color.White, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(music.artist.ifEmpty { "—" }, color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                music.title.ifEmpty { "Tidak ada lagu" },
+                color = Color.White, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                music.artist.ifEmpty { "—" },
+                color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
         }
         Spacer(Modifier.width(8.dp))
         if (music.isPlaying) EqualizerBars()
@@ -296,11 +487,17 @@ private fun RotatingAlbumArt(size: Dp, iconSize: Dp, isPlaying: Boolean, albumAr
         contentAlignment = Alignment.Center
     ) {
         if (albumArt != null && !albumArt.isRecycled) {
-            Image(albumArt.asImageBitmap(), null, contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(CircleShape))
+            Image(
+                albumArt.asImageBitmap(), null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
+            )
         } else {
-            Icon(Icons.Default.MusicNote, null, tint = Color.White,
-                modifier = Modifier.size(iconSize))
+            Icon(
+                Icons.Default.MusicNote, null,
+                tint = Color.White,
+                modifier = Modifier.size(iconSize)
+            )
         }
     }
 }
@@ -321,14 +518,16 @@ private fun EqualizerBars() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         repeat(3) { i ->
             val h = (6 + ((phase * 10 + i * 3) % 10)).dp
-            Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height(h)
-                .clip(RoundedCornerShape(2.dp)).background(SpotifyGreen))
+            Box(
+                Modifier.padding(horizontal = 1.dp).width(3.dp).height(h)
+                    .clip(RoundedCornerShape(2.dp)).background(SpotifyGreen)
+            )
         }
     }
 }
 
 // ============================================
-// CHAT
+// CHAT (emoji 💬)
 // ============================================
 @Composable
 private fun ChatContent() {
@@ -337,24 +536,40 @@ private fun ChatContent() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
-            contentAlignment = Alignment.Center) {
-            Text(chat.avatarInitial.ifEmpty { "?" }, color = Color.White, fontSize = 20.sp,
-                fontWeight = FontWeight.Bold)
+        Box(
+            Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                chat.avatarInitial.ifEmpty { "?" },
+                color = Color.White, fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(chat.senderName.ifEmpty { "Pesan Baru" }, color = Color.White, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(chat.message, color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                chat.senderName.ifEmpty { "Pesan Baru" },
+                color = Color.White, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                chat.message,
+                color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
         }
         Spacer(Modifier.width(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("✉️", fontSize = 16.sp)
+            Text("💬", fontSize = 16.sp)
             Spacer(Modifier.width(4.dp))
-            Text("›", color = Color.White.copy(alpha = 0.5f), fontSize = 18.sp,
-                fontWeight = FontWeight.Bold)
+            Text(
+                "›",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -377,23 +592,37 @@ private fun CallRingingContent(call: CallInfo) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Box(Modifier.size(56.dp).scale(scale).clip(CircleShape)
-                .background(GreenAccept.copy(alpha = 0.25f)))
-            Box(Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
-                contentAlignment = Alignment.Center) {
-                Text(call.avatarInitial, color = Color.White, fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold)
+            Box(
+                Modifier.size(56.dp).scale(scale).clip(CircleShape)
+                    .background(GreenAccept.copy(alpha = 0.25f))
+            )
+            Box(
+                Modifier.size(46.dp).clip(CircleShape).background(AvatarBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    call.avatarInitial,
+                    color = Color.White, fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(call.name, color = Color.White, fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                call.name,
+                color = Color.White, fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Panggilan masuk", color = Color.Gray, fontSize = 11.sp, maxLines = 1)
                 Spacer(Modifier.width(4.dp))
-                Text("›", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold)
+                Text(
+                    "›",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold
+                )
             }
         }
         CallButton(Icons.Default.CallEnd, RedDecline) { IslandState.endCall() }
@@ -424,21 +653,32 @@ private fun CallActiveContent(call: CallInfo) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(26.dp).clip(CircleShape).background(GreenAccept),
-            contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.Call, null, tint = Color.White, modifier = Modifier.size(14.dp))
+        Box(
+            Modifier.size(26.dp).clip(CircleShape).background(GreenAccept),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Call, null,
+                tint = Color.White, modifier = Modifier.size(14.dp)
+            )
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(call.name, color = Color.White, fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                call.name,
+                color = Color.White, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(timeText, color = GreenAccept, fontSize = 10.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             repeat(4) { i ->
                 val h = (6 + (i * 3)) * wave
-                Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height(h.dp)
-                    .clip(RoundedCornerShape(2.dp)).background(GreenAccept))
+                Box(
+                    Modifier.padding(horizontal = 1.dp).width(3.dp).height(h.dp)
+                        .clip(RoundedCornerShape(2.dp)).background(GreenAccept)
+                )
             }
         }
         Spacer(Modifier.width(10.dp))
@@ -472,13 +712,19 @@ private fun ChargingContent() {
             Modifier.size(34.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f)),
             contentAlignment = Alignment.Center
         ) {
-            Text("⚡", fontSize = 16.sp, color = accentColor,
+            Text(
+                "⚡",
+                fontSize = 16.sp, color = accentColor,
                 modifier = Modifier.graphicsLayer {
                     if (!isFull) { scaleX = pulse; scaleY = pulse }
-                })
+                }
+            )
         }
         Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StatItem(info.timeToFull.ifEmpty { "—" }, Color.White)
                 StatItem(if (info.voltage > 0) "%.1f V".format(info.voltage) else "—", Color.White)
@@ -506,8 +752,11 @@ private fun ChargingContent() {
 
 @Composable
 private fun StatItem(value: String, color: Color, bold: Boolean = false) {
-    Text(value, color = color, fontSize = 11.sp,
-        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+    Text(
+        value, color = color, fontSize = 11.sp,
+        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
+        maxLines = 1
+    )
 }
 
 // ============================================
@@ -517,35 +766,47 @@ private fun StatItem(value: String, color: Color, bold: Boolean = false) {
 private fun NavigationContent() {
     val nav = IslandState.navigationInfo.value
     Column(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF1B5E20))
+        modifier = Modifier.fillMaxSize().background(NavGreen)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(20.dp).clip(CircleShape).background(Color.White),
-                contentAlignment = Alignment.Center) {
-                Text("▲", color = Color(0xFF1B5E20), fontSize = 10.sp)
+            Box(
+                Modifier.size(20.dp).clip(CircleShape).background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("▲", color = NavGreen, fontSize = 10.sp)
             }
             Spacer(Modifier.width(8.dp))
-            Text("${nav.appName} · ${nav.duration} · ${nav.distanceTotal} · ${nav.eta}",
+            Text(
+                "${nav.appName} · ${nav.duration} · ${nav.distanceTotal} · ${nav.eta}",
                 color = Color.White, fontSize = 10.sp, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
+            )
             Text("now", color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp)
             Spacer(Modifier.width(6.dp))
             Text("⬆", color = Color.White, fontSize = 16.sp)
         }
         Column {
-            Text(nav.distance, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(nav.instruction, color = Color.White, fontSize = 12.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                nav.distance, color = Color.White,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold
+            )
+            Text(
+                nav.instruction, color = Color.White, fontSize = 12.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
             Spacer(Modifier.height(2.dp))
-            Text("Exit navigation", color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp)
+            Text(
+                "Exit navigation",
+                color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp
+            )
         }
     }
 }
 
 // ============================================
-// ALARM CONTENT ⏰ dengan countdown
+// ALARM CONTENT ⏰
 // ============================================
 @Composable
 private fun AlarmContent() {
@@ -582,25 +843,20 @@ private fun AlarmContent() {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "⏰",
-                fontSize = 22.sp,
+                "⏰", fontSize = 22.sp,
                 modifier = Modifier.graphicsLayer {
                     scaleX = pulse
                     scaleY = pulse
                 }
             )
         }
-
         Spacer(Modifier.width(10.dp))
-
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     alarm.time.ifEmpty { "—" },
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
+                    color = Color.White, fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 1
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -609,27 +865,20 @@ private fun AlarmContent() {
                         alarm.minutesUntil > 0 -> "${alarm.minutesUntil} min"
                         else -> ""
                     },
-                    color = accentColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
+                    color = accentColor, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1
                 )
             }
             Text(
                 alarm.label.ifEmpty { "Alarm" },
-                color = Color.Gray,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
             )
         }
-
         Spacer(Modifier.width(8.dp))
-
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "🔔",
-                fontSize = 18.sp,
+                "🔔", fontSize = 18.sp,
                 modifier = Modifier.graphicsLayer {
                     if (isRinging) { scaleX = pulse; scaleY = pulse }
                 }
@@ -638,8 +887,7 @@ private fun AlarmContent() {
             Text(
                 "›",
                 color = Color.White.copy(alpha = 0.5f),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 18.sp, fontWeight = FontWeight.Bold
             )
         }
     }
@@ -649,8 +897,10 @@ private fun AlarmContent() {
 // REUSABLE — Tombol Call
 // ============================================
 @Composable
-private fun CallButton(icon: ImageVector, bg: Color, size: Dp = 40.dp,
-                       iconSize: Dp = 20.dp, onClick: () -> Unit) {
+private fun CallButton(
+    icon: ImageVector, bg: Color, size: Dp = 40.dp,
+    iconSize: Dp = 20.dp, onClick: () -> Unit
+) {
     Box(
         Modifier.size(size).clip(CircleShape).background(bg).clickable { onClick() },
         contentAlignment = Alignment.Center
@@ -703,29 +953,20 @@ private fun openDialer(context: Context) {
 // ============================================
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewAlarmCountdown() {
+fun PreviewIdle() {
     Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.ALARM
-        IslandState.alarmInfo.value = AlarmInfo(
-            time = "06:00",
-            label = "Bangun pagi",
-            minutesUntil = 10,
-            isRinging = false
-        )
+        IslandState.mode.value = IslandMode.IDLE
         DynamicIslandUI()
     }
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewAlarmRinging() {
+fun PreviewMusic() {
     Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.ALARM
-        IslandState.alarmInfo.value = AlarmInfo(
-            time = "06:00",
-            label = "Bangun pagi",
-            minutesUntil = 0,
-            isRinging = true
+        IslandState.mode.value = IslandMode.MUSIC
+        IslandState.musicInfo.value = MusicInfo(
+            title = "Perfect", artist = "Ed Sheeran", isPlaying = true
         )
         DynamicIslandUI()
     }
@@ -743,6 +984,21 @@ fun PreviewCharging() {
             timeToFull = "05:59",
             chargeType = "USB",
             isCharging = true
+        )
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewAlarm() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.ALARM
+        IslandState.alarmInfo.value = AlarmInfo(
+            time = "06:00",
+            label = "Bangun pagi",
+            minutesUntil = 10,
+            isRinging = false
         )
         DynamicIslandUI()
     }
