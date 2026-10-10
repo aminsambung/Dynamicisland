@@ -64,13 +64,13 @@ fun DynamicIslandUI() {
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
 
-    // ⬇️ Baca alpha dinamis
+    // Baca alpha dinamis
     val glassAlpha = IslandState.glassAlpha.value
     val borderAlpha = IslandState.borderAlpha.value
 
     val targetWidth = when {
         isCollapsed -> when (mode) {
-            IslandMode.CHARGING -> 130.dp
+            IslandMode.CHARGING -> 180.dp        // ⬅️ Memanjang untuk battery bar
             IslandMode.NAVIGATION -> 150.dp
             IslandMode.ALARM -> 150.dp
             else -> 130.dp
@@ -121,7 +121,6 @@ fun DynamicIslandUI() {
                 .width(width)
                 .height(height)
                 .clip(RoundedCornerShape(percent = 50))
-                // ⬇️ BACKGROUND DENGAN ALPHA DINAMIS
                 .background(
                     brush = Brush.verticalGradient(
                         colors = listOf(
@@ -130,7 +129,6 @@ fun DynamicIslandUI() {
                         )
                     )
                 )
-                // ⬇️ BORDER DENGAN ALPHA DINAMIS
                 .border(
                     width = 0.5.dp,
                     color = IslandBorderBase.copy(alpha = borderAlpha),
@@ -293,7 +291,7 @@ private fun MiniMusicContent() {
 }
 
 // ============================================
-// MINI CHARGING ⚡
+// MINI CHARGING ⚡ — dengan battery bar memanjang
 // ============================================
 @Composable
 private fun MiniChargingContent() {
@@ -301,18 +299,115 @@ private fun MiniChargingContent() {
     val isFull = info.isFull || info.percentage >= 100
     val accentColor = if (isFull) Color(0xFF30D158) else ChargingGreen
 
+    val infinite = rememberInfiniteTransition(label = "pulse_mini")
+    val pulse by infinite.animateFloat(
+        0.85f, 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "pulse"
+    )
+
     Row(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("⚡", fontSize = 12.sp, color = accentColor)
-            Spacer(Modifier.width(4.dp))
-            Text("${info.percentage}%", color = accentColor, fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold)
+        // Icon petir
+        Text(
+            "⚡",
+            fontSize = 13.sp,
+            color = accentColor,
+            modifier = Modifier.graphicsLayer {
+                if (!isFull) { scaleX = pulse; scaleY = pulse }
+            }
+        )
+
+        Spacer(Modifier.width(6.dp))
+
+        // Persen
+        Text(
+            "${info.percentage}%",
+            color = accentColor,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+
+        Spacer(Modifier.width(8.dp))
+
+        // Battery bar memanjang
+        BatteryBar(
+            percentage = info.percentage,
+            color = accentColor,
+            modifier = Modifier.weight(1f)
+        )
+
+        Spacer(Modifier.width(6.dp))
+
+        // Icon baterai
+        Text("🔋", fontSize = 11.sp)
+    }
+}
+
+// ============================================
+// BATTERY BAR — reusable
+// ============================================
+@Composable
+private fun BatteryBar(
+    percentage: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val clamped = percentage.coerceIn(0, 100)
+
+    // Animate fill saat persen berubah
+    val animatedFill by animateFloatAsState(
+        targetValue = clamped / 100f,
+        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        label = "battery_fill"
+    )
+
+    Box(
+        modifier = modifier
+            .height(8.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color.White.copy(alpha = 0.15f))
+    ) {
+        // Fill bar
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(animatedFill)
+                .clip(RoundedCornerShape(4.dp))
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.75f),
+                            color
+                        )
+                    )
+                )
+        )
+
+        // Efek shine saat penuh (100%)
+        if (clamped >= 100) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.35f),
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.35f)
+                            )
+                        )
+                    )
+            )
         }
-        Box(Modifier.size(6.dp).clip(CircleShape).background(accentColor))
     }
 }
 
@@ -585,7 +680,7 @@ private fun CallActiveContent(call: CallInfo) {
 }
 
 // ============================================
-// CHARGING ⚡
+// CHARGING ⚡ (expanded) — stats lengkap tanpa bar
 // ============================================
 @Composable
 private fun ChargingContent() {
@@ -828,6 +923,20 @@ fun PreviewMusic() {
 fun PreviewCharging() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.CHARGING
+        IslandState.chargingInfo.value = ChargingInfo(
+            percentage = 34, voltage = 3.8f, temperature = 40.3f,
+            timeToFull = "05:59", chargeType = "USB", isCharging = true
+        )
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewMiniCharging() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.CHARGING
+        IslandState.isManuallyCollapsed.value = true
         IslandState.chargingInfo.value = ChargingInfo(
             percentage = 34, voltage = 3.8f, temperature = 40.3f,
             timeToFull = "05:59", chargeType = "USB", isCharging = true
