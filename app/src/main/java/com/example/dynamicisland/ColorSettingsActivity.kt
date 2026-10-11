@@ -116,6 +116,76 @@ fun ColorSettingsScreen() {
 
             Spacer(Modifier.height(24.dp))
 
+            // ============ SLIDER TRANSPARANSI & BORDER ============
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    // Slider Transparansi
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "🎚️ Transparansi",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "${(IslandState.glassAlpha.value * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = IslandState.glassAlpha.value,
+                        onValueChange = { newValue ->
+                            IslandState.glassAlpha.value = newValue
+                            IslandPreferences.setGlassAlpha(context, newValue)
+                        },
+                        valueRange = 0.1f..1f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Slider Border
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "🔲 Ketebalan Border",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "${(IslandState.borderAlpha.value * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = IslandState.borderAlpha.value,
+                        onValueChange = { newValue ->
+                            IslandState.borderAlpha.value = newValue
+                            IslandPreferences.setBorderAlpha(context, newValue)
+                        },
+                        valueRange = 0f..0.5f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // ============ TOGGLE GRADIENT ============
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -276,13 +346,17 @@ fun ColorSettingsScreen() {
                     IslandState.islandColorBottom.value = IslandPreferences.DEFAULT_COLOR
                     isGradient = false
                     IslandState.useGradient.value = false
+                    IslandState.glassAlpha.value = IslandPreferences.DEFAULT_GLASS_ALPHA
+                    IslandState.borderAlpha.value = IslandPreferences.DEFAULT_BORDER_ALPHA
                     IslandPreferences.setIslandColor(context, IslandPreferences.DEFAULT_COLOR)
                     IslandPreferences.setIslandColorBottom(context, IslandPreferences.DEFAULT_COLOR)
                     IslandPreferences.setUseGradient(context, false)
+                    IslandPreferences.setGlassAlpha(context, IslandPreferences.DEFAULT_GLASS_ALPHA)
+                    IslandPreferences.setBorderAlpha(context, IslandPreferences.DEFAULT_BORDER_ALPHA)
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("↩️ Reset ke Hitam")
+                Text("↩️ Reset ke Default")
             }
 
             Spacer(Modifier.height(40.dp))
