@@ -7,8 +7,10 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -16,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -93,7 +96,12 @@ fun MainScreen() {
                         HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("ℹ️ Tentang") },
-                            onClick = { showMenu = false }
+                            onClick = {
+                                showMenu = false
+                                context.startActivity(
+                                    Intent(context, AboutActivity::class.java)
+                                )
+                            }
                         )
                     }
                 },
@@ -255,6 +263,46 @@ fun MainScreen() {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
+
+            Spacer(Modifier.height(24.dp))
+
+            // ============================================
+            // TANDA TANGAN / FOOTER
+            // ============================================
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Divider cantik
+                Box(
+                    modifier = Modifier
+                        .width(60.dp)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                )
+                Spacer(Modifier.height(12.dp))
+
+                // Tanda tangan
+                Text(
+                    "Made by Aminsambung",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(4.dp))
+
+                // Versi app
+                Text(
+                    "Dynamic Island v1.0",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    fontSize = 10.sp
+                )
+            }
 
             Spacer(Modifier.height(40.dp))
         }
