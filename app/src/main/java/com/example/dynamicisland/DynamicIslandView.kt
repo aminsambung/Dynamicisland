@@ -37,12 +37,8 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 // ============================================
-// WARNA DASAR — Alpha dihitung dinamis dari IslandState
+// WARNA AKSEN (fixed)
 // ============================================
-private val IslandBaseTop = Color(0xFF1A1A1A)
-private val IslandBaseBottom = Color(0xFF0A0A0A)
-private val IslandBorderBase = Color(0xFFFFFFFF)
-
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
 private val SpotifyGreen = Color(0xFF1DB954)
@@ -64,13 +60,16 @@ fun DynamicIslandUI() {
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
 
-    // Baca alpha dinamis
+    // ============ BACA PREFERENSI USER ============
     val glassAlpha = IslandState.glassAlpha.value
     val borderAlpha = IslandState.borderAlpha.value
+    val colorTop = Color(IslandState.islandColor.value)
+    val colorBottom = Color(IslandState.islandColorBottom.value)
+    val useGradient = IslandState.useGradient.value
 
     val targetWidth = when {
         isCollapsed -> when (mode) {
-            IslandMode.CHARGING -> 180.dp        // ⬅️ Memanjang untuk battery bar
+            IslandMode.CHARGING -> 180.dp
             IslandMode.NAVIGATION -> 150.dp
             IslandMode.ALARM -> 150.dp
             else -> 130.dp
@@ -109,6 +108,23 @@ fun DynamicIslandUI() {
         label = "height"
     )
 
+    // ============================================
+    // HITUNG WARNA GRADIENT (2 mode: solid / gradient)
+    // ============================================
+    val gradientColors = if (useGradient) {
+        // Gradient: atas & bawah berbeda
+        listOf(
+            colorTop.copy(alpha = glassAlpha),
+            colorBottom.copy(alpha = glassAlpha * 0.85f)
+        )
+    } else {
+        // Solid: atas & bawah sama (pakai warna atas)
+        listOf(
+            colorTop.copy(alpha = glassAlpha),
+            colorTop.copy(alpha = glassAlpha * 0.85f)
+        )
+    }
+
     // WRAPPER FULL WIDTH — biar pill selalu center
     Box(
         modifier = Modifier
@@ -121,19 +137,18 @@ fun DynamicIslandUI() {
                 .width(width)
                 .height(height)
                 .clip(RoundedCornerShape(percent = 50))
+                // ============ BACKGROUND GRADIENT ============
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(
-                            IslandBaseTop.copy(alpha = glassAlpha),
-                            IslandBaseBottom.copy(alpha = glassAlpha * 0.85f)
-                        )
+                        colors = gradientColors
                     )
                 )
                 .border(
                     width = 0.5.dp,
-                    color = IslandBorderBase.copy(alpha = borderAlpha),
+                    color = Color.White.copy(alpha = borderAlpha),
                     shape = RoundedCornerShape(percent = 50)
                 )
+                // ============ TAP / DOUBLE TAP / LONG PRESS ============
                 .pointerInput(mode, isCollapsed) {
                     detectTapGestures(
                         onTap = {
@@ -195,6 +210,7 @@ fun DynamicIslandUI() {
                         }
                     )
                 }
+                // ============ SWIPE ============
                 .pointerInput(mode) {
                     var totalDrag = 0f
                     detectHorizontalDragGestures(
@@ -291,7 +307,7 @@ private fun MiniMusicContent() {
 }
 
 // ============================================
-// MINI CHARGING ⚡ — dengan battery bar memanjang
+// MINI CHARGING ⚡ — dengan battery bar
 // ============================================
 @Composable
 private fun MiniChargingContent() {
@@ -309,12 +325,9 @@ private fun MiniChargingContent() {
     )
 
     Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon petir
         Text(
             "⚡",
             fontSize = 13.sp,
@@ -323,10 +336,7 @@ private fun MiniChargingContent() {
                 if (!isFull) { scaleX = pulse; scaleY = pulse }
             }
         )
-
         Spacer(Modifier.width(6.dp))
-
-        // Persen
         Text(
             "${info.percentage}%",
             color = accentColor,
@@ -334,25 +344,19 @@ private fun MiniChargingContent() {
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
-
         Spacer(Modifier.width(8.dp))
-
-        // Battery bar memanjang
         BatteryBar(
             percentage = info.percentage,
             color = accentColor,
             modifier = Modifier.weight(1f)
         )
-
         Spacer(Modifier.width(6.dp))
-
-        // Icon baterai
         Text("🔋", fontSize = 11.sp)
     }
 }
 
 // ============================================
-// BATTERY BAR — reusable
+// BATTERY BAR
 // ============================================
 @Composable
 private fun BatteryBar(
@@ -362,7 +366,6 @@ private fun BatteryBar(
 ) {
     val clamped = percentage.coerceIn(0, 100)
 
-    // Animate fill saat persen berubah
     val animatedFill by animateFloatAsState(
         targetValue = clamped / 100f,
         animationSpec = tween(800, easing = FastOutSlowInEasing),
@@ -375,7 +378,6 @@ private fun BatteryBar(
             .clip(RoundedCornerShape(4.dp))
             .background(Color.White.copy(alpha = 0.15f))
     ) {
-        // Fill bar
         Box(
             modifier = Modifier
                 .fillMaxHeight()
@@ -383,15 +385,10 @@ private fun BatteryBar(
                 .clip(RoundedCornerShape(4.dp))
                 .background(
                     brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            color.copy(alpha = 0.75f),
-                            color
-                        )
+                        colors = listOf(color.copy(alpha = 0.75f), color)
                     )
                 )
         )
-
-        // Efek shine saat penuh (100%)
         if (clamped >= 100) {
             Box(
                 modifier = Modifier
@@ -423,14 +420,19 @@ private fun MiniNavigationContent() {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(16.dp).clip(CircleShape).background(NavGreen),
-                contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(16.dp).clip(CircleShape).background(NavGreen),
+                contentAlignment = Alignment.Center
+            ) {
                 Text("▲", color = Color.White, fontSize = 8.sp)
             }
             Spacer(Modifier.width(6.dp))
-            Text(nav.distance.ifEmpty { nav.duration }.ifEmpty { nav.appName },
-                color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                nav.distance.ifEmpty { nav.duration }.ifEmpty { nav.appName },
+                color = Color.White, fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         Text("⬆", color = Color.White, fontSize = 12.sp)
     }
@@ -465,21 +467,27 @@ private fun MiniAlarmContent() {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(16.dp).clip(CircleShape).background(accentColor),
-                contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(16.dp).clip(CircleShape).background(accentColor),
+                contentAlignment = Alignment.Center
+            ) {
                 Text("⏰", fontSize = 9.sp,
                     modifier = Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse })
             }
             Spacer(Modifier.width(6.dp))
-            Text(alarm.time.ifEmpty { "—" }, color = Color.White, fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold)
+            Text(
+                alarm.time.ifEmpty { "—" },
+                color = Color.White, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
             if (alarm.minutesUntil > 0) {
                 Spacer(Modifier.width(4.dp))
-                Text("${alarm.minutesUntil}m", color = accentColor, fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold)
+                Text("${alarm.minutesUntil}m", color = accentColor,
+                    fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             } else if (isRinging) {
                 Spacer(Modifier.width(4.dp))
-                Text("NOW!", color = accentColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Text("NOW!", color = accentColor, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold)
             }
         }
         Text("🔔", fontSize = 12.sp)
@@ -499,10 +507,17 @@ private fun MusicContent() {
         RotatingAlbumArt(46.dp, music.isPlaying, music.albumArt)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(music.title.ifEmpty { "Tidak ada lagu" }, color = Color.White, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(music.artist.ifEmpty { "—" }, color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                music.title.ifEmpty { "Tidak ada lagu" },
+                color = Color.White, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                music.artist.ifEmpty { "—" },
+                color = Color.Gray, fontSize = 11.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
         }
         Spacer(Modifier.width(8.dp))
         if (music.isPlaying) EqualizerBars()
@@ -572,13 +587,14 @@ private fun ChatContent() {
     ) {
         Box(Modifier.size(46.dp).clip(CircleShape).background(WhatsAppGreen),
             contentAlignment = Alignment.Center) {
-            Text(chat.avatarInitial.ifEmpty { "?" }, color = Color.White, fontSize = 20.sp,
-                fontWeight = FontWeight.Bold)
+            Text(chat.avatarInitial.ifEmpty { "?" }, color = Color.White,
+                fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(chat.senderName.ifEmpty { "Pesan Baru" }, color = Color.White, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(chat.senderName.ifEmpty { "Pesan Baru" }, color = Color.White,
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
             Text(chat.message, color = Color.Gray, fontSize = 11.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -621,7 +637,8 @@ private fun CallRingingContent(call: CallInfo) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(call.name, color = Color.White, fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Panggilan masuk", color = Color.Gray, fontSize = 11.sp, maxLines = 1)
                 Spacer(Modifier.width(4.dp))
@@ -664,7 +681,8 @@ private fun CallActiveContent(call: CallInfo) {
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(call.name, color = Color.White, fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
             Text(timeText, color = GreenAccept, fontSize = 10.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -680,7 +698,7 @@ private fun CallActiveContent(call: CallInfo) {
 }
 
 // ============================================
-// CHARGING ⚡ (expanded) — stats lengkap tanpa bar
+// CHARGING ⚡ (expanded)
 // ============================================
 @Composable
 private fun ChargingContent() {
@@ -764,7 +782,8 @@ private fun NavigationContent() {
             Text("⬆", color = Color.White, fontSize = 16.sp)
         }
         Column {
-            Text(nav.distance, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(nav.distance, color = Color.White, fontSize = 14.sp,
+                fontWeight = FontWeight.Bold)
             Text(nav.instruction, color = Color.White, fontSize = 12.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
@@ -810,8 +829,8 @@ private fun AlarmContent() {
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(alarm.time.ifEmpty { "—" }, color = Color.White, fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(alarm.time.ifEmpty { "—" }, color = Color.White,
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = when {
@@ -819,12 +838,12 @@ private fun AlarmContent() {
                         alarm.minutesUntil > 0 -> "${alarm.minutesUntil} min"
                         else -> ""
                     },
-                    color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
+                    color = accentColor, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1
                 )
             }
-            Text(alarm.label.ifEmpty { "Alarm" }, color = Color.Gray, fontSize = 11.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(alarm.label.ifEmpty { "Alarm" }, color = Color.Gray,
+                fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -920,40 +939,17 @@ fun PreviewMusic() {
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewCharging() {
+fun PreviewChargingGradient() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.CHARGING
         IslandState.chargingInfo.value = ChargingInfo(
             percentage = 34, voltage = 3.8f, temperature = 40.3f,
             timeToFull = "05:59", chargeType = "USB", isCharging = true
         )
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
-@Composable
-fun PreviewMiniCharging() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.CHARGING
-        IslandState.isManuallyCollapsed.value = true
-        IslandState.chargingInfo.value = ChargingInfo(
-            percentage = 34, voltage = 3.8f, temperature = 40.3f,
-            timeToFull = "05:59", chargeType = "USB", isCharging = true
-        )
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
-@Composable
-fun PreviewAlarm() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.ALARM
-        IslandState.alarmInfo.value = AlarmInfo(
-            time = "06:00", label = "Bangun pagi",
-            minutesUntil = 10, isRinging = false
-        )
+        // Gradient preview
+        IslandState.useGradient.value = true
+        IslandState.islandColor.value = 0xFFE65100
+        IslandState.islandColorBottom.value = 0xFFC62828
         DynamicIslandUI()
     }
 }
