@@ -12,7 +12,8 @@ enum class IslandMode {
     CHAT,
     CHARGING,
     NAVIGATION,
-    ALARM
+    ALARM,
+    BLUETOOTH
 }
 
 data class CallInfo(
@@ -57,6 +58,15 @@ data class AlarmInfo(
     val packageName: String = ""
 )
 
+// ⬇️ BARU: Bluetooth info
+data class BluetoothInfo(
+    val deviceName: String = "",
+    val isConnected: Boolean = false,
+    val isConnecting: Boolean = false,
+    val batteryLevel: Int = -1,
+    val deviceType: String = "device"
+)
+
 object IslandState {
     val mode = mutableStateOf(IslandMode.IDLE)
     val callInfo = mutableStateOf(CallInfo())
@@ -65,17 +75,16 @@ object IslandState {
     val chargingInfo = mutableStateOf(ChargingInfo())
     val navigationInfo = mutableStateOf(NavigationInfo())
     val alarmInfo = mutableStateOf(AlarmInfo())
+    val bluetoothInfo = mutableStateOf(BluetoothInfo())   // ⬅️ BARU
     val isManuallyCollapsed = mutableStateOf(false)
     val isVisible = mutableStateOf(false)
 
-    // ============================================
-    // TAMPILAN — bisa diubah user
-    // ============================================
+    // Tampilan
     val glassAlpha = mutableStateOf(IslandPreferences.DEFAULT_GLASS_ALPHA)
     val borderAlpha = mutableStateOf(IslandPreferences.DEFAULT_BORDER_ALPHA)
-    val islandColor = mutableStateOf(IslandPreferences.DEFAULT_COLOR)          // Warna atas
-    val islandColorBottom = mutableStateOf(IslandPreferences.DEFAULT_COLOR)    // Warna bawah
-    val useGradient = mutableStateOf(false)                                     // Toggle gradient
+    val islandColor = mutableStateOf(IslandPreferences.DEFAULT_COLOR)
+    val islandColorBottom = mutableStateOf(IslandPreferences.DEFAULT_COLOR)
+    val useGradient = mutableStateOf(false)
 
     private val handler = Handler(Looper.getMainLooper())
     private var hideRunnable: Runnable? = null
@@ -84,6 +93,7 @@ object IslandState {
     private const val IDLE_HIDE_DELAY_MS = 5_000L
     private const val PAUSE_HIDE_DELAY_MS = 3_000L
     private const val CHAT_AUTO_DISMISS_MS = 6_000L
+    private const val BLUETOOTH_AUTO_HIDE_MS = 5_000L
 
     // ==================== VISIBILITY ====================
     fun showIsland() {
@@ -282,6 +292,36 @@ object IslandState {
         alarmInfo.value = AlarmInfo()
     }
 
+    // ==================== BLUETOOTH ⬅️ BARU ====================
+    fun showBluetooth(info: BluetoothInfo) {
+        bluetoothInfo.value = info
+
+        // Jangan timpa call/alarm
+        if (mode.value == IslandMode.CALL_RINGING ||
+            mode.value == IslandMode.CALL_ACTIVE ||
+            mode.value == IslandMode.ALARM) return
+
+        mode.value = IslandMode.BLUETOOTH
+        showIsland()
+
+        // Auto-hide setelah 5 detik (kecuali connecting)
+        if (!info.isConnecting) {
+            handler.postDelayed({
+                if (mode.value == IslandMode.BLUETOOTH) {
+                    mode.value = if (musicInfo.value.isPlaying) IslandMode.MUSIC else IslandMode.IDLE
+                    scheduleHide(IDLE_HIDE_DELAY_MS)
+                }
+            }, BLUETOOTH_AUTO_HIDE_MS)
+        }
+    }
+
+    fun dismissBluetooth() {
+        if (mode.value == IslandMode.BLUETOOTH) {
+            mode.value = if (musicInfo.value.isPlaying) IslandMode.MUSIC else IslandMode.IDLE
+            scheduleHide(IDLE_HIDE_DELAY_MS)
+        }
+    }
+
     // ==================== MANUAL COLLAPSE ====================
     fun toggleCollapse() {
         isManuallyCollapsed.value = !isManuallyCollapsed.value
@@ -294,7 +334,8 @@ object IslandState {
             IslandMode.MUSIC,
             IslandMode.CHARGING,
             IslandMode.NAVIGATION,
-            IslandMode.ALARM -> true
+            IslandMode.ALARM,
+            IslandMode.BLUETOOTH -> true
             else -> false
         }
     }
