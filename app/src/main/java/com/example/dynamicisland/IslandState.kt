@@ -68,9 +68,14 @@ object IslandState {
     val isManuallyCollapsed = mutableStateOf(false)
     val isVisible = mutableStateOf(false)
 
-    // ⬇️ BARU: Transparansi island (bisa diubah user via Settings)
+    // ============================================
+    // TAMPILAN — bisa diubah user
+    // ============================================
     val glassAlpha = mutableStateOf(IslandPreferences.DEFAULT_GLASS_ALPHA)
     val borderAlpha = mutableStateOf(IslandPreferences.DEFAULT_BORDER_ALPHA)
+    val islandColor = mutableStateOf(IslandPreferences.DEFAULT_COLOR)          // Warna atas
+    val islandColorBottom = mutableStateOf(IslandPreferences.DEFAULT_COLOR)    // Warna bawah
+    val useGradient = mutableStateOf(false)                                     // Toggle gradient
 
     private val handler = Handler(Looper.getMainLooper())
     private var hideRunnable: Runnable? = null
