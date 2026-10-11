@@ -2,13 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Overlay & Service -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-
-    <!-- Untuk deteksi panggilan telepon -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
 
     <application
@@ -19,7 +16,6 @@
         android:theme="@style/Theme.DynamicIsland"
         tools:targetApi="34">
 
-        <!-- Activity Utama -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -30,7 +26,29 @@
             </intent-filter>
         </activity>
 
-        <!-- Dynamic Island Overlay Service -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="Setelan" />
+
+        <activity
+            android:name=".ColorSettingsActivity"
+            android:exported="false"
+            android:label="Warna Island"
+            android:parentActivityName=".SettingsActivity" />
+
+        <activity
+            android:name=".NotificationSettingsActivity"
+            android:exported="false"
+            android:label="Notifikasi Island"
+            android:parentActivityName=".SettingsActivity" />
+
+        <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:label="Tentang"
+            android:parentActivityName=".SettingsActivity" />
+
         <service
             android:name=".DynamicIslandService"
             android:exported="false"
@@ -40,7 +58,6 @@
                 android:value="dynamic island overlay"/>
         </service>
 
-        <!-- Media & Notification Listener Service -->
         <service
             android:name=".MediaListenerService"
             android:exported="true"
