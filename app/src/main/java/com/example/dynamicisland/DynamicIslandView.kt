@@ -64,11 +64,20 @@ fun DynamicIslandUI() {
     val isCollapsed = IslandState.shouldShowCollapsed()
 
     // ============ BACA PREFERENSI USER ============
-    val glassAlpha = IslandState.glassAlpha.value
+    val rawAlpha = IslandState.glassAlpha.value
     val borderAlpha = IslandState.borderAlpha.value
     val colorTop = Color(IslandState.islandColor.value)
     val colorBottom = Color(IslandState.islandColorBottom.value)
     val useGradient = IslandState.useGradient.value
+
+    // ============================================
+    // AUTO-ADJUST: Warna gelap minimal 60%
+    // ============================================
+    val glassAlpha = if (isDarkColor(IslandState.islandColor.value)) {
+        maxOf(rawAlpha, 0.6f)   // Warna gelap → min 60%
+    } else {
+        rawAlpha                 // Warna terang → bebas
+    }
 
     val targetWidth = when {
         isCollapsed -> when (mode) {
@@ -83,7 +92,7 @@ fun DynamicIslandUI() {
         mode == IslandMode.CALL_ACTIVE -> 240.dp
         mode == IslandMode.CHAT -> 340.dp
         mode == IslandMode.CHARGING -> 340.dp
-        mode == IslandMode.NAVIGATION -> 370.dp   // ⬅️ sedikit lebih lebar
+        mode == IslandMode.NAVIGATION -> 370.dp
         mode == IslandMode.ALARM -> 340.dp
         else -> 130.dp
     }
@@ -143,7 +152,13 @@ fun DynamicIslandUI() {
                 )
                 .border(
                     width = 0.5.dp,
-                    color = Color.White.copy(alpha = borderAlpha),
+                    color = Color.White.copy(
+                        alpha = if (isDarkColor(IslandState.islandColor.value)) {
+                            maxOf(borderAlpha, 0.25f)   // Auto-border untuk warna gelap
+                        } else {
+                            borderAlpha
+                        }
+                    ),
                     shape = RoundedCornerShape(percent = 50)
                 )
                 // ============ TAP ============
@@ -261,6 +276,21 @@ fun DynamicIslandUI() {
             }
         }
     }
+}
+
+// ============================================
+// HELPER — Deteksi warna gelap
+// ============================================
+private fun isDarkColor(colorLong: Long): Boolean {
+    val r = ((colorLong shr 16) and 0xFF) / 255f
+    val g = ((colorLong shr 8) and 0xFF) / 255f
+    val b = (colorLong and 0xFF) / 255f
+
+    // Formula luminance: 0.299*R + 0.587*G + 0.114*B
+    val luminance = 0.299f * r + 0.587f * g + 0.114f * b
+
+    // < 0.3 = gelap
+    return luminance < 0.3f
 }
 
 // ============================================
@@ -759,14 +789,12 @@ private fun StatItem(value: String, color: Color, bold: Boolean = false) {
 }
 
 // ============================================
-// NAVIGATION 🗺️ (UPGRADED)
+// NAVIGATION 🗺️
 // ============================================
 @Composable
 private fun NavigationContent() {
     val nav = IslandState.navigationInfo.value
-    val context = LocalContext.current
 
-    // Deteksi icon belok dari instruksi
     val turnIcon = getTurnIcon(nav.instruction)
     val turnColor = getTurnColor(nav.instruction)
 
@@ -777,12 +805,10 @@ private fun NavigationContent() {
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // ============ BARIS ATAS: Icon + Instruksi + Close ============
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            // Icon belok hijau
             Box(
                 modifier = Modifier
                     .size(38.dp)
@@ -790,24 +816,17 @@ private fun NavigationContent() {
                     .background(turnColor),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    turnIcon,
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(turnIcon, color = Color.White, fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold)
             }
 
             Spacer(Modifier.width(8.dp))
 
-            // Instruksi multi-line + ETA
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     nav.instruction.ifEmpty { "Lanjut lurus" },
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    color = Color.White, fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 15.sp
                 )
@@ -822,15 +841,13 @@ private fun NavigationContent() {
                         }
                     }.ifEmpty { nav.appName },
                     color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 10.sp,
-                    maxLines = 1,
+                    fontSize = 10.sp, maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
             Spacer(Modifier.width(6.dp))
 
-            // Tombol close (✕)
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -841,33 +858,25 @@ private fun NavigationContent() {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "✕",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("✕", color = Color.White, fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold)
             }
         }
 
         Spacer(Modifier.height(6.dp))
 
-        // ============ BARIS BAWAH: Jarak + Exit Button ============
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Jarak besar
             Text(
                 nav.distance.ifEmpty { "—" },
-                color = Color.White,
-                fontSize = 16.sp,
+                color = Color.White, fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Spacer(Modifier.weight(1f))
 
-            // Tombol "Exit Navigation"
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -879,8 +888,7 @@ private fun NavigationContent() {
             ) {
                 Text(
                     "Exit Navigation",
-                    color = Color.White,
-                    fontSize = 10.sp,
+                    color = Color.White, fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -909,9 +917,6 @@ private fun getTurnIcon(instruction: String): String {
     }
 }
 
-// ============================================
-// HELPER — Warna icon belok
-// ============================================
 private fun getTurnColor(instruction: String): Color {
     val lower = instruction.lowercase()
     return when {
@@ -1049,46 +1054,52 @@ private fun openDialer(context: Context) {
 // ============================================
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewNavigation() {
+fun PreviewIdle() {
     Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.NAVIGATION
-        IslandState.navigationInfo.value = NavigationInfo(
-            instruction = "Turn Right on MG Road",
-            distance = "90m",
-            duration = "12 min",
-            distanceTotal = "5.2 km",
-            eta = "22:33",
-            appName = "Maps",
-            packageName = "com.google.android.apps.maps"
-        )
+        IslandState.mode.value = IslandMode.IDLE
         DynamicIslandUI()
     }
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewMusic() {
+fun PreviewMusicGradient() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.MUSIC
         IslandState.musicInfo.value = MusicInfo(
             title = "Perfect", artist = "Ed Sheeran", isPlaying = true
         )
+        IslandState.useGradient.value = true
+        IslandState.islandColor.value = 0xFFE65100
+        IslandState.islandColorBottom.value = 0xFFC62828
         DynamicIslandUI()
     }
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewChargingGradient() {
+fun PreviewCharging() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.CHARGING
         IslandState.chargingInfo.value = ChargingInfo(
             percentage = 34, voltage = 3.8f, temperature = 40.3f,
             timeToFull = "05:59", chargeType = "USB", isCharging = true
         )
-        IslandState.useGradient.value = true
-        IslandState.islandColor.value = 0xFFE65100
-        IslandState.islandColorBottom.value = 0xFFC62828
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewNavigation() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.NAVIGATION
+        IslandState.navigationInfo.value = NavigationInfo(
+            instruction = "Turn Right on MG Road",
+            distance = "90m", duration = "12 min",
+            distanceTotal = "5.2 km", eta = "22:33",
+            appName = "Maps", packageName = "com.google.android.apps.maps"
+        )
         DynamicIslandUI()
     }
 }
