@@ -37,7 +37,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 // ============================================
-// WARNA AKSEN (fixed)
+// WARNA AKSEN
 // ============================================
 private val GreenAccept = Color(0xFF30D158)
 private val RedDecline = Color(0xFFFF3B30)
@@ -51,11 +51,12 @@ private val YellowAccent = Color(0xFFFFCC00)
 private val NavTurnGreen = Color(0xFF34C759)
 private val NavTurnGray = Color(0xFF8E8E93)
 private val NavTurnRed = Color(0xFFFF3B30)
+private val BluetoothBlue = Color(0xFF1E88E5)
 
 // ============================================
-// RADIUS ISLAND — Ganti di sini!
+// RADIUS ISLAND
 // ============================================
-private val ISLAND_CORNER_RADIUS = 24.dp   // ⬅️ Ubah sesuai selera
+private val ISLAND_CORNER_RADIUS = 24.dp
 
 // ============================================
 // MAIN UI
@@ -67,14 +68,12 @@ fun DynamicIslandUI() {
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
 
-    // ============ BACA PREFERENSI USER ============
     val rawAlpha = IslandState.glassAlpha.value
     val borderAlpha = IslandState.borderAlpha.value
     val colorTop = Color(IslandState.islandColor.value)
     val colorBottom = Color(IslandState.islandColorBottom.value)
     val useGradient = IslandState.useGradient.value
 
-    // Auto-adjust untuk warna gelap
     val glassAlpha = if (isDarkColor(IslandState.islandColor.value)) {
         maxOf(rawAlpha, 0.6f)
     } else {
@@ -86,6 +85,7 @@ fun DynamicIslandUI() {
             IslandMode.CHARGING -> 180.dp
             IslandMode.NAVIGATION -> 150.dp
             IslandMode.ALARM -> 150.dp
+            IslandMode.BLUETOOTH -> 170.dp
             else -> 130.dp
         }
         mode == IslandMode.IDLE -> 130.dp
@@ -96,6 +96,7 @@ fun DynamicIslandUI() {
         mode == IslandMode.CHARGING -> 340.dp
         mode == IslandMode.NAVIGATION -> 370.dp
         mode == IslandMode.ALARM -> 340.dp
+        mode == IslandMode.BLUETOOTH -> 320.dp
         else -> 130.dp
     }
     val targetHeight = when {
@@ -108,6 +109,7 @@ fun DynamicIslandUI() {
         mode == IslandMode.CHARGING -> 72.dp
         mode == IslandMode.NAVIGATION -> 110.dp
         mode == IslandMode.ALARM -> 72.dp
+        mode == IslandMode.BLUETOOTH -> 72.dp
         else -> 36.dp
     }
 
@@ -122,7 +124,6 @@ fun DynamicIslandUI() {
         label = "height"
     )
 
-    // Gradient colors
     val gradientColors = if (useGradient) {
         listOf(
             colorTop.copy(alpha = glassAlpha),
@@ -135,10 +136,8 @@ fun DynamicIslandUI() {
         )
     }
 
-    // ⬇️ SHAPE: Rounded Rectangle (bukan oval!)
     val islandShape = RoundedCornerShape(ISLAND_CORNER_RADIUS)
 
-    // WRAPPER FULL WIDTH
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -149,7 +148,7 @@ fun DynamicIslandUI() {
             modifier = Modifier
                 .width(width)
                 .height(height)
-                .clip(islandShape)                       // ⬅️ Rounded rectangle
+                .clip(islandShape)
                 .background(
                     brush = Brush.verticalGradient(colors = gradientColors)
                 )
@@ -162,9 +161,8 @@ fun DynamicIslandUI() {
                             borderAlpha
                         }
                     ),
-                    shape = islandShape                      // ⬅️ Rounded rectangle
+                    shape = islandShape
                 )
-                // ============ TAP ============
                 .pointerInput(mode, isCollapsed) {
                     detectTapGestures(
                         onTap = {
@@ -198,6 +196,9 @@ fun DynamicIslandUI() {
                                     IslandMode.NAVIGATION -> {
                                         openApp(context, IslandState.navigationInfo.value.packageName)
                                     }
+                                    IslandMode.BLUETOOTH -> {
+                                        openBluetoothSettings(context)   // ⬅️ BARU
+                                    }
                                     IslandMode.IDLE -> {
                                         if (!IslandState.musicInfo.value.isEmpty) {
                                             IslandState.showMusic()
@@ -212,7 +213,8 @@ fun DynamicIslandUI() {
                                 IslandMode.MUSIC,
                                 IslandMode.CHARGING,
                                 IslandMode.NAVIGATION,
-                                IslandMode.ALARM -> IslandState.toggleCollapse()
+                                IslandMode.ALARM,
+                                IslandMode.BLUETOOTH -> IslandState.toggleCollapse()   // ⬅️ BARU
                                 IslandMode.CHAT -> IslandState.dismissChat()
                                 else -> {}
                             }
@@ -226,7 +228,6 @@ fun DynamicIslandUI() {
                         }
                     )
                 }
-                // ============ SWIPE ============
                 .pointerInput(mode) {
                     var totalDrag = 0f
                     detectHorizontalDragGestures(
@@ -248,6 +249,9 @@ fun DynamicIslandUI() {
                                 IslandMode.ALARM -> {
                                     if (abs(totalDrag) > 80f) IslandState.dismissAlarm()
                                 }
+                                IslandMode.BLUETOOTH -> {
+                                    if (abs(totalDrag) > 80f) IslandState.dismissBluetooth()
+                                }
                                 else -> {}
                             }
                             totalDrag = 0f
@@ -263,6 +267,7 @@ fun DynamicIslandUI() {
                     IslandMode.CHARGING -> MiniChargingContent()
                     IslandMode.NAVIGATION -> MiniNavigationContent()
                     IslandMode.ALARM -> MiniAlarmContent()
+                    IslandMode.BLUETOOTH -> MiniBluetoothContent()
                     else -> IdleContent()
                 }
             } else {
@@ -275,6 +280,7 @@ fun DynamicIslandUI() {
                     IslandMode.CHARGING -> ChargingContent()
                     IslandMode.NAVIGATION -> NavigationContent()
                     IslandMode.ALARM -> AlarmContent()
+                    IslandMode.BLUETOOTH -> BluetoothContent()
                 }
             }
         }
@@ -520,6 +526,47 @@ private fun MiniAlarmContent() {
             }
         }
         Text("🔔", fontSize = 12.sp)
+    }
+}
+
+// ============================================
+// MINI BLUETOOTH 🎧 (BARU)
+// ============================================
+@Composable
+private fun MiniBluetoothContent() {
+    val bt = IslandState.bluetoothInfo.value
+    val icon = getBluetoothIcon(bt.deviceType)
+
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(icon, fontSize = 12.sp)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                bt.deviceName.ifEmpty { "Bluetooth" },
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (bt.batteryLevel >= 0) {
+            Text(
+                "${bt.batteryLevel}%",
+                color = if (bt.batteryLevel > 20) Color(0xFF30D158) else Color(0xFFFF3B30),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Box(
+                Modifier.size(6.dp).clip(CircleShape)
+                    .background(if (bt.isConnected) Color(0xFF30D158) else Color.Gray)
+            )
+        }
     }
 }
 
@@ -787,21 +834,16 @@ private fun StatItem(value: String, color: Color, bold: Boolean = false) {
 }
 
 // ============================================
-// NAVIGATION 🗺️ — background mengikuti tema
+// NAVIGATION 🗺️
 // ============================================
 @Composable
 private fun NavigationContent() {
     val nav = IslandState.navigationInfo.value
-
     val colorTop = Color(IslandState.islandColor.value)
     val colorBottom = Color(IslandState.islandColorBottom.value)
     val useGradient = IslandState.useGradient.value
 
-    val bgColors = if (useGradient) {
-        listOf(colorTop, colorBottom)
-    } else {
-        listOf(colorTop, colorTop)
-    }
+    val bgColors = if (useGradient) listOf(colorTop, colorBottom) else listOf(colorTop, colorTop)
 
     val turnIcon = getTurnIcon(nav.instruction)
     val turnColor = getTurnColor(nav.instruction)
@@ -809,13 +851,10 @@ private fun NavigationContent() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(colors = bgColors)
-            )
+            .background(brush = Brush.verticalGradient(colors = bgColors))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Baris atas: Icon + Instruksi + Close
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
@@ -827,25 +866,16 @@ private fun NavigationContent() {
                     .background(turnColor),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    turnIcon,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(turnIcon, color = Color.White, fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold)
             }
-
             Spacer(Modifier.width(10.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     nav.instruction.ifEmpty { "Lanjut lurus" },
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 15.sp
+                    color = Color.White, fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis, lineHeight = 15.sp
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
@@ -853,27 +883,20 @@ private fun NavigationContent() {
                         if (nav.duration.isNotEmpty()) append(nav.duration)
                         if (nav.distanceTotal.isNotEmpty()) {
                             if (isNotEmpty()) append(" · ")
-                            append(nav.distanceTotal)
-                            append(" remaining")
+                            append(nav.distanceTotal); append(" remaining")
                         }
                     }.ifEmpty { nav.appName },
                     color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
-
             Spacer(Modifier.width(6.dp))
-
             Box(
                 modifier = Modifier
                     .size(26.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.15f))
-                    .clickable {
-                        IslandState.dismissNavigation()
-                    },
+                    .clickable { IslandState.dismissNavigation() },
                 contentAlignment = Alignment.Center
             ) {
                 Text("✕", color = Color.White, fontSize = 13.sp,
@@ -883,69 +906,24 @@ private fun NavigationContent() {
 
         Spacer(Modifier.height(6.dp))
 
-        // Baris bawah: Jarak + Exit
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                nav.distance.ifEmpty { "—" },
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-
+            Text(nav.distance.ifEmpty { "—" }, color = Color.White,
+                fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White.copy(alpha = 0.15f))
-                    .clickable {
-                        IslandState.dismissNavigation()
-                    }
+                    .clickable { IslandState.dismissNavigation() }
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
-                Text(
-                    "Exit Navigation",
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text("Exit Navigation", color = Color.White,
+                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-    }
-}
-
-// ============================================
-// HELPER — Icon belok dari instruksi
-// ============================================
-private fun getTurnIcon(instruction: String): String {
-    val lower = instruction.lowercase()
-    return when {
-        lower.contains("uturn") || lower.contains("u-turn") -> "↩"
-        lower.contains("roundabout") -> "🔄"
-        lower.contains("left") || lower.contains("kiri") -> "⬅"
-        lower.contains("right") || lower.contains("kanan") -> "➡"
-        lower.contains("straight") || lower.contains("lurus") -> "⬆"
-        lower.contains("exit") || lower.contains("keluar") -> "↗"
-        lower.contains("merge") -> "↗"
-        lower.contains("slight left") -> "↖"
-        lower.contains("slight right") -> "↗"
-        lower.contains("sharp left") -> "⬅"
-        lower.contains("sharp right") -> "➡"
-        else -> "⬆"
-    }
-}
-
-private fun getTurnColor(instruction: String): Color {
-    val lower = instruction.lowercase()
-    return when {
-        lower.contains("uturn") || lower.contains("u-turn") -> NavTurnRed
-        lower.contains("left") || lower.contains("kiri") -> NavTurnGreen
-        lower.contains("right") || lower.contains("kanan") -> NavTurnGreen
-        lower.contains("straight") || lower.contains("lurus") -> NavTurnGray
-        else -> NavTurnGreen
     }
 }
 
@@ -956,7 +934,6 @@ private fun getTurnColor(instruction: String): Color {
 private fun AlarmContent() {
     val alarm = IslandState.alarmInfo.value
     val isRinging = alarm.isRinging || alarm.minutesUntil <= 0
-
     val accentColor = when {
         isRinging -> RedDecline
         alarm.minutesUntil <= 1 -> RedDecline
@@ -1016,7 +993,162 @@ private fun AlarmContent() {
 }
 
 // ============================================
-// REUSABLE — Tombol Call (emoji)
+// BLUETOOTH 🎧 (expanded) — BARU
+// ============================================
+@Composable
+private fun BluetoothContent() {
+    val bt = IslandState.bluetoothInfo.value
+    val icon = getBluetoothIcon(bt.deviceType)
+
+    val infinite = rememberInfiniteTransition(label = "bt_pulse")
+    val pulse by infinite.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Icon device
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(BluetoothBlue)
+                .then(
+                    if (bt.isConnecting) {
+                        Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse }
+                    } else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(icon, fontSize = 22.sp)
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Info device
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                bt.deviceName.ifEmpty { "Bluetooth Device" },
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = when {
+                    bt.isConnecting -> "Connecting..."
+                    bt.isConnected -> "Connected"
+                    else -> "Disconnected"
+                },
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp
+            )
+        }
+
+        // Status indicator
+        Column(horizontalAlignment = Alignment.End) {
+            if (bt.batteryLevel >= 0) {
+                Text(
+                    "${bt.batteryLevel}%",
+                    color = if (bt.batteryLevel > 20) Color(0xFF30D158) else Color(0xFFFF3B30),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("🔋", fontSize = 10.sp)
+            } else {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                bt.isConnecting -> Color(0xFFFFCC00)
+                                bt.isConnected -> Color(0xFF30D158)
+                                else -> Color(0xFFFF3B30)
+                            }
+                        )
+                )
+            }
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        // Close button
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.15f))
+                .clickable { IslandState.dismissBluetooth() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("✕", color = Color.White, fontSize = 12.sp,
+                fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+// ============================================
+// HELPER — Icon Bluetooth
+// ============================================
+private fun getBluetoothIcon(deviceType: String): String {
+    return when (deviceType.lowercase()) {
+        "headphone", "headset", "airpods" -> "🎧"
+        "speaker" -> "🔊"
+        "watch" -> "⌚"
+        "car" -> "🚗"
+        "keyboard" -> "⌨️"
+        "mouse" -> "🖱️"
+        "gamepad", "controller" -> "🎮"
+        "phone" -> "📱"
+        else -> "🔵"
+    }
+}
+
+// ============================================
+// HELPER — Icon belok navigasi
+// ============================================
+private fun getTurnIcon(instruction: String): String {
+    val lower = instruction.lowercase()
+    return when {
+        lower.contains("uturn") || lower.contains("u-turn") -> "↩"
+        lower.contains("roundabout") -> "🔄"
+        lower.contains("left") || lower.contains("kiri") -> "⬅"
+        lower.contains("right") || lower.contains("kanan") -> "➡"
+        lower.contains("straight") || lower.contains("lurus") -> "⬆"
+        lower.contains("exit") || lower.contains("keluar") -> "↗"
+        lower.contains("merge") -> "↗"
+        lower.contains("slight left") -> "↖"
+        lower.contains("slight right") -> "↗"
+        lower.contains("sharp left") -> "⬅"
+        lower.contains("sharp right") -> "➡"
+        else -> "⬆"
+    }
+}
+
+private fun getTurnColor(instruction: String): Color {
+    val lower = instruction.lowercase()
+    return when {
+        lower.contains("uturn") || lower.contains("u-turn") -> NavTurnRed
+        lower.contains("left") || lower.contains("kiri") -> NavTurnGreen
+        lower.contains("right") || lower.contains("kanan") -> NavTurnGreen
+        lower.contains("straight") || lower.contains("lurus") -> NavTurnGray
+        else -> NavTurnGreen
+    }
+}
+
+// ============================================
+// REUSABLE — Tombol Call
 // ============================================
 @Composable
 private fun CallButtonEmoji(
@@ -1070,9 +1202,32 @@ private fun openDialer(context: Context) {
     } catch (_: Exception) {}
 }
 
+private fun openBluetoothSettings(context: Context) {
+    try {
+        val intent = Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+            .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        context.startActivity(intent)
+    } catch (_: Exception) {}
+}
+
 // ============================================
 // PREVIEWS
 // ============================================
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewBluetooth() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.BLUETOOTH
+        IslandState.bluetoothInfo.value = BluetoothInfo(
+            deviceName = "AirPods Pro",
+            isConnected = true,
+            deviceType = "headphone",
+            batteryLevel = -1
+        )
+        DynamicIslandUI()
+    }
+}
+
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
 fun PreviewMusic() {
@@ -1080,37 +1235,6 @@ fun PreviewMusic() {
         IslandState.mode.value = IslandMode.MUSIC
         IslandState.musicInfo.value = MusicInfo(
             title = "Perfect", artist = "Ed Sheeran", isPlaying = true
-        )
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
-@Composable
-fun PreviewNavigation() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.NAVIGATION
-        IslandState.navigationInfo.value = NavigationInfo(
-            instruction = "Turn Right on MG Road",
-            distance = "90m", duration = "12 min",
-            distanceTotal = "5.2 km", eta = "22:33",
-            appName = "Maps", packageName = "com.google.android.apps.maps"
-        )
-        IslandState.useGradient.value = true
-        IslandState.islandColor.value = 0xFFE65100
-        IslandState.islandColorBottom.value = 0xFFC62828
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
-@Composable
-fun PreviewCharging() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.CHARGING
-        IslandState.chargingInfo.value = ChargingInfo(
-            percentage = 34, voltage = 3.8f, temperature = 40.3f,
-            timeToFull = "05:59", chargeType = "USB", isCharging = true
         )
         DynamicIslandUI()
     }
