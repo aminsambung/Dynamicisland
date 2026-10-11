@@ -74,9 +74,9 @@ fun DynamicIslandUI() {
     // AUTO-ADJUST: Warna gelap minimal 60%
     // ============================================
     val glassAlpha = if (isDarkColor(IslandState.islandColor.value)) {
-        maxOf(rawAlpha, 0.6f)   // Warna gelap → min 60%
+        maxOf(rawAlpha, 0.6f)
     } else {
-        rawAlpha                 // Warna terang → bebas
+        rawAlpha
     }
 
     val targetWidth = when {
@@ -154,7 +154,7 @@ fun DynamicIslandUI() {
                     width = 0.5.dp,
                     color = Color.White.copy(
                         alpha = if (isDarkColor(IslandState.islandColor.value)) {
-                            maxOf(borderAlpha, 0.25f)   // Auto-border untuk warna gelap
+                            maxOf(borderAlpha, 0.25f)
                         } else {
                             borderAlpha
                         }
@@ -285,11 +285,7 @@ private fun isDarkColor(colorLong: Long): Boolean {
     val r = ((colorLong shr 16) and 0xFF) / 255f
     val g = ((colorLong shr 8) and 0xFF) / 255f
     val b = (colorLong and 0xFF) / 255f
-
-    // Formula luminance: 0.299*R + 0.587*G + 0.114*B
     val luminance = 0.299f * r + 0.587f * g + 0.114f * b
-
-    // < 0.3 = gelap
     return luminance < 0.3f
 }
 
@@ -393,7 +389,6 @@ private fun BatteryBar(
     modifier: Modifier = Modifier
 ) {
     val clamped = percentage.coerceIn(0, 100)
-
     val animatedFill by animateFloatAsState(
         targetValue = clamped / 100f,
         animationSpec = tween(800, easing = FastOutSlowInEasing),
@@ -789,11 +784,25 @@ private fun StatItem(value: String, color: Color, bold: Boolean = false) {
 }
 
 // ============================================
-// NAVIGATION 🗺️
+// NAVIGATION 🗺️ — background mengikuti tema warna
 // ============================================
 @Composable
 private fun NavigationContent() {
     val nav = IslandState.navigationInfo.value
+
+    // ============================================
+    // BACA WARNA TEMA USER
+    // ============================================
+    val colorTop = Color(IslandState.islandColor.value)
+    val colorBottom = Color(IslandState.islandColorBottom.value)
+    val useGradient = IslandState.useGradient.value
+
+    // Background mengikuti tema
+    val bgColors = if (useGradient) {
+        listOf(colorTop, colorBottom)
+    } else {
+        listOf(colorTop, colorTop)
+    }
 
     val turnIcon = getTurnIcon(nav.instruction)
     val turnColor = getTurnColor(nav.instruction)
@@ -801,36 +810,50 @@ private fun NavigationContent() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(NavGreen)
+            // ⬇️ Background mengikuti tema warna
+            .background(
+                brush = Brush.verticalGradient(colors = bgColors)
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
+        // ============ BARIS ATAS: Icon + Instruksi + Close ============
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
+            // Icon belok besar
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(42.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(turnColor),
                 contentAlignment = Alignment.Center
             ) {
-                Text(turnIcon, color = Color.White, fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold)
+                Text(
+                    turnIcon,
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(10.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            // Instruksi + ETA
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     nav.instruction.ifEmpty { "Lanjut lurus" },
-                    color = Color.White, fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold, maxLines = 2,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 15.sp
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(3.dp))
                 Text(
                     buildString {
                         if (nav.duration.isNotEmpty()) append(nav.duration)
@@ -841,16 +864,18 @@ private fun NavigationContent() {
                         }
                     }.ifEmpty { nav.appName },
                     color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 10.sp, maxLines = 1,
+                    fontSize = 10.sp,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
             Spacer(Modifier.width(6.dp))
 
+            // Tombol Close ✕
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.15f))
                     .clickable {
@@ -858,20 +883,26 @@ private fun NavigationContent() {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text("✕", color = Color.White, fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold)
+                Text(
+                    "✕",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
         Spacer(Modifier.height(6.dp))
 
+        // ============ BARIS BAWAH: Jarak + Exit Button ============
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 nav.distance.ifEmpty { "—" },
-                color = Color.White, fontSize = 16.sp,
+                color = Color.White,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
 
@@ -884,11 +915,12 @@ private fun NavigationContent() {
                     .clickable {
                         IslandState.dismissNavigation()
                     }
-                    .padding(horizontal = 12.dp, vertical = 5.dp)
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
                     "Exit Navigation",
-                    color = Color.White, fontSize = 10.sp,
+                    color = Color.White,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -1054,21 +1086,16 @@ private fun openDialer(context: Context) {
 // ============================================
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewIdle() {
+fun PreviewNavigationSunset() {
     Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.IDLE
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
-@Composable
-fun PreviewMusicGradient() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.MUSIC
-        IslandState.musicInfo.value = MusicInfo(
-            title = "Perfect", artist = "Ed Sheeran", isPlaying = true
+        IslandState.mode.value = IslandMode.NAVIGATION
+        IslandState.navigationInfo.value = NavigationInfo(
+            instruction = "Turn Right on MG Road",
+            distance = "90m", duration = "12 min",
+            distanceTotal = "5.2 km", eta = "22:33",
+            appName = "Maps", packageName = "com.google.android.apps.maps"
         )
+        // Gradient Sunset
         IslandState.useGradient.value = true
         IslandState.islandColor.value = 0xFFE65100
         IslandState.islandColorBottom.value = 0xFFC62828
@@ -1078,28 +1105,18 @@ fun PreviewMusicGradient() {
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewCharging() {
-    Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.CHARGING
-        IslandState.chargingInfo.value = ChargingInfo(
-            percentage = 34, voltage = 3.8f, temperature = 40.3f,
-            timeToFull = "05:59", chargeType = "USB", isCharging = true
-        )
-        DynamicIslandUI()
-    }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
-@Composable
-fun PreviewNavigation() {
+fun PreviewNavigationOcean() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.NAVIGATION
         IslandState.navigationInfo.value = NavigationInfo(
-            instruction = "Turn Right on MG Road",
-            distance = "90m", duration = "12 min",
-            distanceTotal = "5.2 km", eta = "22:33",
+            instruction = "Turn Left on Jl. Sudirman",
+            distance = "200m", duration = "8 min",
+            distanceTotal = "3.1 km", eta = "22:45",
             appName = "Maps", packageName = "com.google.android.apps.maps"
         )
+        IslandState.useGradient.value = true
+        IslandState.islandColor.value = 0xFF1E88E5
+        IslandState.islandColorBottom.value = 0xFF0D47A1
         DynamicIslandUI()
     }
 }
