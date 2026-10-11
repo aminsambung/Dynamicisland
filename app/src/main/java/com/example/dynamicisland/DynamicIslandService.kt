@@ -4,10 +4,17 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
+import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
@@ -25,12 +32,73 @@ class DynamicIslandService : Service() {
     private lateinit var composeView: ComposeView
     private lateinit var lifecycleOwner: OverlayLifecycleOwner
 
+    // ============================================
+    // BLUETOOTH RECEIVER
+    // ============================================
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            val device: BluetoothDevice? = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(
+                        BluetoothDevice.EXTRA_DEVICE,
+                        BluetoothDevice::class.java
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                }
+            } catch (_: Exception) { null }
+
+            val deviceName = try {
+                device?.name ?: "Bluetooth Device"
+            } catch (_: SecurityException) {
+                "Bluetooth Device"
+            }
+
+            val deviceType = try {
+                when (device?.bluetoothClass?.majorDeviceClass) {
+                    BluetoothClass.Device.Major.AUDIO_VIDEO -> "headphone"
+                    BluetoothClass.Device.Major.COMPUTER -> "computer"
+                    BluetoothClass.Device.Major.PHONE -> "phone"
+                    BluetoothClass.Device.Major.WEARABLE -> "watch"
+                    else -> "device"
+                }
+            } catch (_: SecurityException) { "device" }
+
+            when (action) {
+                BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                    Log.d("Bluetooth", "Connected: $deviceName")
+                    IslandState.showBluetooth(
+                        BluetoothInfo(
+                            deviceName = deviceName,
+                            isConnected = true,
+                            isConnecting = false,
+                            batteryLevel = -1,
+                            deviceType = deviceType
+                        )
+                    )
+                }
+
+                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                    Log.d("Bluetooth", "Disconnected: $deviceName")
+                    IslandState.showBluetooth(
+                        BluetoothInfo(
+                            deviceName = deviceName,
+                            isConnected = false,
+                            isConnecting = false,
+                            deviceType = deviceType
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
 
-        // ============================================
-        // LOAD SEMUA PREFERENSI USER
-        // ============================================
+        // Load preferensi
         IslandState.glassAlpha.value = IslandPreferences.getGlassAlpha(this)
         IslandState.borderAlpha.value = IslandPreferences.getBorderAlpha(this)
         IslandState.islandColor.value = IslandPreferences.getIslandColor(this)
@@ -40,6 +108,22 @@ class DynamicIslandService : Service() {
         startForegroundNotification()
         createOverlay()
         AlarmScheduler.start(this)
+
+        // Register Bluetooth receiver
+        try {
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(bluetoothReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(bluetoothReceiver, filter)
+            }
+            Log.d("Bluetooth", "Receiver registered")
+        } catch (e: Exception) {
+            Log.e("Bluetooth", "Failed to register", e)
+        }
     }
 
     private fun startForegroundNotification() {
@@ -94,7 +178,6 @@ class DynamicIslandService : Service() {
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
                 val isVisible = IslandState.isVisible.value
-
                 AnimatedVisibility(
                     visible = isVisible,
                     enter = fadeIn() + slideInVertically { -it },
@@ -130,6 +213,12 @@ class DynamicIslandService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         AlarmScheduler.stop()
+
+        // Unregister Bluetooth
+        try {
+            unregisterReceiver(bluetoothReceiver)
+        } catch (_: Exception) {}
+
         if (::composeView.isInitialized) {
             try {
                 windowManager.removeView(composeView)
