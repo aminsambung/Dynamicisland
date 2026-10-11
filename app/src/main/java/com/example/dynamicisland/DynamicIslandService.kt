@@ -28,9 +28,14 @@ class DynamicIslandService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        // ⬇️ Load preferensi user (transparansi)
+        // ============================================
+        // LOAD SEMUA PREFERENSI USER
+        // ============================================
         IslandState.glassAlpha.value = IslandPreferences.getGlassAlpha(this)
         IslandState.borderAlpha.value = IslandPreferences.getBorderAlpha(this)
+        IslandState.islandColor.value = IslandPreferences.getIslandColor(this)
+        IslandState.islandColorBottom.value = IslandPreferences.getIslandColorBottom(this)
+        IslandState.useGradient.value = IslandPreferences.getUseGradient(this)
 
         startForegroundNotification()
         createOverlay()
@@ -107,7 +112,7 @@ class DynamicIslandService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,      // ← Lebar penuh
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -115,7 +120,7 @@ class DynamicIslandService : Service() {
                     or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP                          // ← Cuma TOP
+            gravity = Gravity.TOP
             y = 40
         }
 
