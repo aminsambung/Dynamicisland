@@ -48,10 +48,14 @@ private val AvatarBg = Color(0xFF2C2C2E)
 private val ChargingGreen = Color(0xFF34C759)
 private val OrangeAccent = Color(0xFFFF9500)
 private val YellowAccent = Color(0xFFFFCC00)
-private val NavGreen = Color(0xFF1B5E20)
 private val NavTurnGreen = Color(0xFF34C759)
 private val NavTurnGray = Color(0xFF8E8E93)
 private val NavTurnRed = Color(0xFFFF3B30)
+
+// ============================================
+// RADIUS ISLAND — Ganti di sini!
+// ============================================
+private val ISLAND_CORNER_RADIUS = 24.dp   // ⬅️ Ubah sesuai selera
 
 // ============================================
 // MAIN UI
@@ -70,9 +74,7 @@ fun DynamicIslandUI() {
     val colorBottom = Color(IslandState.islandColorBottom.value)
     val useGradient = IslandState.useGradient.value
 
-    // ============================================
-    // AUTO-ADJUST: Warna gelap minimal 60%
-    // ============================================
+    // Auto-adjust untuk warna gelap
     val glassAlpha = if (isDarkColor(IslandState.islandColor.value)) {
         maxOf(rawAlpha, 0.6f)
     } else {
@@ -120,9 +122,7 @@ fun DynamicIslandUI() {
         label = "height"
     )
 
-    // ============================================
-    // HITUNG WARNA GRADIENT (solid / gradient)
-    // ============================================
+    // Gradient colors
     val gradientColors = if (useGradient) {
         listOf(
             colorTop.copy(alpha = glassAlpha),
@@ -135,7 +135,10 @@ fun DynamicIslandUI() {
         )
     }
 
-    // WRAPPER FULL WIDTH — biar pill selalu center
+    // ⬇️ SHAPE: Rounded Rectangle (bukan oval!)
+    val islandShape = RoundedCornerShape(ISLAND_CORNER_RADIUS)
+
+    // WRAPPER FULL WIDTH
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,7 +149,7 @@ fun DynamicIslandUI() {
             modifier = Modifier
                 .width(width)
                 .height(height)
-                .clip(RoundedCornerShape(percent = 50))
+                .clip(islandShape)                       // ⬅️ Rounded rectangle
                 .background(
                     brush = Brush.verticalGradient(colors = gradientColors)
                 )
@@ -159,7 +162,7 @@ fun DynamicIslandUI() {
                             borderAlpha
                         }
                     ),
-                    shape = RoundedCornerShape(percent = 50)
+                    shape = islandShape                      // ⬅️ Rounded rectangle
                 )
                 // ============ TAP ============
                 .pointerInput(mode, isCollapsed) {
@@ -784,20 +787,16 @@ private fun StatItem(value: String, color: Color, bold: Boolean = false) {
 }
 
 // ============================================
-// NAVIGATION 🗺️ — background mengikuti tema warna
+// NAVIGATION 🗺️ — background mengikuti tema
 // ============================================
 @Composable
 private fun NavigationContent() {
     val nav = IslandState.navigationInfo.value
 
-    // ============================================
-    // BACA WARNA TEMA USER
-    // ============================================
     val colorTop = Color(IslandState.islandColor.value)
     val colorBottom = Color(IslandState.islandColorBottom.value)
     val useGradient = IslandState.useGradient.value
 
-    // Background mengikuti tema
     val bgColors = if (useGradient) {
         listOf(colorTop, colorBottom)
     } else {
@@ -810,19 +809,17 @@ private fun NavigationContent() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            // ⬇️ Background mengikuti tema warna
             .background(
                 brush = Brush.verticalGradient(colors = bgColors)
             )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // ============ BARIS ATAS: Icon + Instruksi + Close ============
+        // Baris atas: Icon + Instruksi + Close
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            // Icon belok besar
             Box(
                 modifier = Modifier
                     .size(42.dp)
@@ -840,10 +837,7 @@ private fun NavigationContent() {
 
             Spacer(Modifier.width(10.dp))
 
-            // Instruksi + ETA
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     nav.instruction.ifEmpty { "Lanjut lurus" },
                     color = Color.White,
@@ -872,7 +866,6 @@ private fun NavigationContent() {
 
             Spacer(Modifier.width(6.dp))
 
-            // Tombol Close ✕
             Box(
                 modifier = Modifier
                     .size(26.dp)
@@ -883,18 +876,14 @@ private fun NavigationContent() {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "✕",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text("✕", color = Color.White, fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold)
             }
         }
 
         Spacer(Modifier.height(6.dp))
 
-        // ============ BARIS BAWAH: Jarak + Exit Button ============
+        // Baris bawah: Jarak + Exit
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -1086,7 +1075,19 @@ private fun openDialer(context: Context) {
 // ============================================
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewNavigationSunset() {
+fun PreviewMusic() {
+    Box(Modifier.padding(20.dp)) {
+        IslandState.mode.value = IslandMode.MUSIC
+        IslandState.musicInfo.value = MusicInfo(
+            title = "Perfect", artist = "Ed Sheeran", isPlaying = true
+        )
+        DynamicIslandUI()
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
+@Composable
+fun PreviewNavigation() {
     Box(Modifier.padding(20.dp)) {
         IslandState.mode.value = IslandMode.NAVIGATION
         IslandState.navigationInfo.value = NavigationInfo(
@@ -1095,7 +1096,6 @@ fun PreviewNavigationSunset() {
             distanceTotal = "5.2 km", eta = "22:33",
             appName = "Maps", packageName = "com.google.android.apps.maps"
         )
-        // Gradient Sunset
         IslandState.useGradient.value = true
         IslandState.islandColor.value = 0xFFE65100
         IslandState.islandColorBottom.value = 0xFFC62828
@@ -1105,18 +1105,13 @@ fun PreviewNavigationSunset() {
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A1A1A, widthDp = 400, heightDp = 200)
 @Composable
-fun PreviewNavigationOcean() {
+fun PreviewCharging() {
     Box(Modifier.padding(20.dp)) {
-        IslandState.mode.value = IslandMode.NAVIGATION
-        IslandState.navigationInfo.value = NavigationInfo(
-            instruction = "Turn Left on Jl. Sudirman",
-            distance = "200m", duration = "8 min",
-            distanceTotal = "3.1 km", eta = "22:45",
-            appName = "Maps", packageName = "com.google.android.apps.maps"
+        IslandState.mode.value = IslandMode.CHARGING
+        IslandState.chargingInfo.value = ChargingInfo(
+            percentage = 34, voltage = 3.8f, temperature = 40.3f,
+            timeToFull = "05:59", chargeType = "USB", isCharging = true
         )
-        IslandState.useGradient.value = true
-        IslandState.islandColor.value = 0xFF1E88E5
-        IslandState.islandColorBottom.value = 0xFF0D47A1
         DynamicIslandUI()
     }
 }
