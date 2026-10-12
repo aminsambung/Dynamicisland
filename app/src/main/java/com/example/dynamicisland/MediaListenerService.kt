@@ -285,7 +285,7 @@ class MediaListenerService : NotificationListenerService() {
         if (sbn.isOngoing) return
 
         // Whitelist app penting
-        val alwaysAllowed = pkg in listOf(
+        val alwaysAllowed = listOf(
             "com.google.android.apps.maps", "com.waze", "com.sygic.aura", "com.here.app.maps",
             "com.google.android.deskclock", "com.android.deskclock", "com.miui.clock",
             "com.samsung.android.app.clock", "com.sec.android.app.clockpackage",
@@ -298,7 +298,7 @@ class MediaListenerService : NotificationListenerService() {
 
         // ⬇️ FIX: pakai .not() — valid di Kotlin
         if (alwaysAllowed.contains(pkg).not()) {
-            if (NotificationPreferences.isAppEnabled(this, pkg).not()) {
+    if (NotificationPreferences.isAppEnabled(this, pkg).not()) {
                 Log.d("MediaListener", "Skip $pkg (disabled by user)")
                 return
             }
