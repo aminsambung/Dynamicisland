@@ -23,16 +23,12 @@ class MediaListenerService : NotificationListenerService() {
 
     // Package yang dipantau
     private val monitoredPackages = setOf(
-        // WhatsApp
         "com.whatsapp", "com.whatsapp.w4b",
-        // Dialer
         "com.android.dialer", "com.samsung.android.dialer",
         "com.google.android.dialer", "com.android.phone",
         "com.android.server.telecom",
-        // Navigation
         "com.google.android.apps.maps", "com.waze",
         "com.sygic.aura", "com.here.app.maps",
-        // Alarm
         "com.google.android.deskclock", "com.android.deskclock",
         "com.miui.clock", "com.samsung.android.app.clock",
         "com.sec.android.app.clockpackage", "com.coloros.alarmclock",
@@ -40,7 +36,6 @@ class MediaListenerService : NotificationListenerService() {
         "com.android.alarmclock"
     )
 
-    // Handler untuk timeout
     private val handler = Handler(Looper.getMainLooper())
 
     // ============================================
@@ -289,7 +284,7 @@ class MediaListenerService : NotificationListenerService() {
         if (title.isEmpty() && text.isEmpty()) return
         if (sbn.isOngoing) return
 
-        // Cek whitelist user
+        // Whitelist app penting
         val alwaysAllowed = pkg in listOf(
             "com.google.android.apps.maps", "com.waze", "com.sygic.aura", "com.here.app.maps",
             "com.google.android.deskclock", "com.android.deskclock", "com.miui.clock",
@@ -301,8 +296,9 @@ class MediaListenerService : NotificationListenerService() {
             "com.android.server.telecom"
         )
 
-        if (!alwaysAllowed.contains(pkg)) {
-    if (!NotificationPreferences.isAppEnabled(this, pkg)) {
+        // ⬇️ FIX: pakai .not() — valid di Kotlin
+        if (alwaysAllowed.contains(pkg).not()) {
+            if (NotificationPreferences.isAppEnabled(this, pkg).not()) {
                 Log.d("MediaListener", "Skip $pkg (disabled by user)")
                 return
             }
@@ -375,7 +371,7 @@ class MediaListenerService : NotificationListenerService() {
                      nText.contains("berlangsung", ignoreCase = true))
                 } ?: false
 
-                if (!stillHasCall) {
+                if (stillHasCall.not()) {
                     Log.d("MediaListener", "Call notif removed — dismissing island")
                     IslandState.dismissCall()
                     lastCallUpdate = 0L
@@ -394,7 +390,7 @@ class MediaListenerService : NotificationListenerService() {
                 notif.packageName == pkg && notif.isOngoing
             } ?: false
 
-            if (!stillHasNav) {
+            if (stillHasNav.not()) {
                 Log.d("MediaListener", "Navigation notif removed — dismissing")
                 IslandState.dismissNavigation()
                 lastNavigationUpdate = 0L
@@ -407,13 +403,12 @@ class MediaListenerService : NotificationListenerService() {
     // WHATSAPP
     // ============================================
     private fun handleWhatsApp(title: String, text: String, pkg: String) {
-        // ⬇️ FIX: tanda kurung di luar ! untuk method call dengan parameter
         val isIncomingCall = text.contains("panggilan masuk", ignoreCase = true) ||
                 text.contains("incoming call", ignoreCase = true) ||
                 text.contains("video call", ignoreCase = true) ||
                 text.contains("panggilan video", ignoreCase = true) ||
                 (title.contains("panggilan", ignoreCase = true) &&
-                        !(text.contains("tak terjawab", ignoreCase = true)))
+                        text.contains("tak terjawab", ignoreCase = true).not())
 
         val isMissedCall = text.contains("panggilan tak terjawab", ignoreCase = true) ||
                 text.contains("missed call", ignoreCase = true) ||
@@ -474,7 +469,7 @@ class MediaListenerService : NotificationListenerService() {
                 text.contains("missed", ignoreCase = true) ||
                 title.contains("panggilan", ignoreCase = true)
 
-        if (!isCall) return
+        if (isCall.not()) return
 
         lastCallUpdate = System.currentTimeMillis()
         handler.removeCallbacks(callTimeoutChecker)
