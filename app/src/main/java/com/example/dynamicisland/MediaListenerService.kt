@@ -301,7 +301,7 @@ class MediaListenerService : NotificationListenerService() {
             "com.android.server.telecom"
         )
 
-        if (pkg !in alwaysAllowed) {
+        if (!(pkg in alwaysAllowed)) {
             if (!NotificationPreferences.isAppEnabled(this, pkg)) {
                 Log.d("MediaListener", "Skip $pkg (disabled by user)")
                 return
