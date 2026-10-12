@@ -47,7 +47,7 @@ class MediaListenerService : NotificationListenerService() {
     // CALL TIMEOUT TRACKER
     // ============================================
     private var lastCallUpdate: Long = 0L
-    private val callTimeoutMs: Long = 60_000L  // 60 detik max
+    private val callTimeoutMs: Long = 60_000L
 
     private val callTimeoutChecker = object : Runnable {
         override fun run() {
@@ -350,9 +350,7 @@ class MediaListenerService : NotificationListenerService() {
 
         Log.d("MediaListener", "Notif removed from $pkg: [$title] [$text]")
 
-        // ============================================
-        // DETECT: panggilan selesai
-        // ============================================
+        // Detect panggilan selesai
         if (IslandState.mode.value == IslandMode.CALL_RINGING ||
             IslandState.mode.value == IslandMode.CALL_ACTIVE) {
 
@@ -365,7 +363,6 @@ class MediaListenerService : NotificationListenerService() {
                     pkg.contains("whatsapp")
 
             if (isCallNotif) {
-                // Cek apakah masih ada notif panggilan aktif lain
                 val stillHasCall = activeNotifications?.any { notif ->
                     val nExtras = notif.notification?.extras ?: return@any false
                     val nText = nExtras.getCharSequence("android.text")?.toString() ?: ""
@@ -387,9 +384,7 @@ class MediaListenerService : NotificationListenerService() {
             }
         }
 
-        // ============================================
-        // DETECT: navigation selesai
-        // ============================================
+        // Detect navigation selesai
         if (IslandState.mode.value == IslandMode.NAVIGATION &&
             pkg in listOf(
                 "com.google.android.apps.maps", "com.waze",
@@ -412,12 +407,13 @@ class MediaListenerService : NotificationListenerService() {
     // WHATSAPP
     // ============================================
     private fun handleWhatsApp(title: String, text: String, pkg: String) {
+        // ⬇️ FIX: tanda kurung di luar ! untuk method call dengan parameter
         val isIncomingCall = text.contains("panggilan masuk", ignoreCase = true) ||
                 text.contains("incoming call", ignoreCase = true) ||
                 text.contains("video call", ignoreCase = true) ||
                 text.contains("panggilan video", ignoreCase = true) ||
                 (title.contains("panggilan", ignoreCase = true) &&
-                        !text.contains("tak terjawab", ignoreCase = true))
+                        !(text.contains("tak terjawab", ignoreCase = true)))
 
         val isMissedCall = text.contains("panggilan tak terjawab", ignoreCase = true) ||
                 text.contains("missed call", ignoreCase = true) ||
@@ -480,7 +476,6 @@ class MediaListenerService : NotificationListenerService() {
 
         if (!isCall) return
 
-        // Catat waktu + start timeout
         lastCallUpdate = System.currentTimeMillis()
         handler.removeCallbacks(callTimeoutChecker)
         handler.postDelayed(callTimeoutChecker, 5_000L)
@@ -562,7 +557,6 @@ class MediaListenerService : NotificationListenerService() {
 
         if (instruction.isEmpty()) instruction = cleanTitle
 
-        // Catat waktu
         lastNavigationUpdate = System.currentTimeMillis()
         handler.removeCallbacks(navigationTimeoutChecker)
         handler.postDelayed(navigationTimeoutChecker, 5_000L)
@@ -626,7 +620,7 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     // ============================================
-    // GENERIC NOTIF (semua app lain)
+    // GENERIC NOTIF
     // ============================================
     private fun handleGenericNotif(title: String, text: String, pkg: String) {
         val currentMode = IslandState.mode.value
