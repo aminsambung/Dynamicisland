@@ -10,6 +10,8 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -19,6 +21,7 @@ class MediaListenerService : NotificationListenerService() {
     private var mediaSessionManager: MediaSessionManager? = null
     private var activeController: MediaController? = null
 
+    // Package yang dipantau
     private val monitoredPackages = setOf(
         // WhatsApp
         "com.whatsapp", "com.whatsapp.w4b",
@@ -37,6 +40,55 @@ class MediaListenerService : NotificationListenerService() {
         "com.android.alarmclock"
     )
 
+    // Handler untuk timeout
+    private val handler = Handler(Looper.getMainLooper())
+
+    // ============================================
+    // CALL TIMEOUT TRACKER
+    // ============================================
+    private var lastCallUpdate: Long = 0L
+    private val callTimeoutMs: Long = 60_000L  // 60 detik max
+
+    private val callTimeoutChecker = object : Runnable {
+        override fun run() {
+            if (IslandState.mode.value == IslandMode.CALL_RINGING ||
+                IslandState.mode.value == IslandMode.CALL_ACTIVE) {
+                val elapsed = System.currentTimeMillis() - lastCallUpdate
+                if (elapsed > callTimeoutMs) {
+                    Log.d("MediaListener", "Call timeout — dismissing island")
+                    IslandState.dismissCall()
+                    lastCallUpdate = 0L
+                } else {
+                    handler.postDelayed(this, 5_000L)
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // NAVIGATION TIMEOUT TRACKER
+    // ============================================
+    private var lastNavigationUpdate: Long = 0L
+    private val navigationTimeoutMs: Long = 30_000L
+
+    private val navigationTimeoutChecker = object : Runnable {
+        override fun run() {
+            if (IslandState.mode.value == IslandMode.NAVIGATION) {
+                val elapsed = System.currentTimeMillis() - lastNavigationUpdate
+                if (elapsed > navigationTimeoutMs) {
+                    Log.d("MediaListener", "Navigation timeout — dismissing island")
+                    IslandState.dismissNavigation()
+                    lastNavigationUpdate = 0L
+                } else {
+                    handler.postDelayed(this, 5_000L)
+                }
+            }
+        }
+    }
+
+    // ============================================
+    // MEDIA SESSION CALLBACK
+    // ============================================
     private val controllerCallback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) = updateFromController()
         override fun onPlaybackStateChanged(state: PlaybackState?) = updateFromController()
@@ -111,6 +163,9 @@ class MediaListenerService : NotificationListenerService() {
         }
     }
 
+    // ============================================
+    // LIFECYCLE
+    // ============================================
     override fun onCreate() {
         super.onCreate()
         registerReceiver(
@@ -121,6 +176,8 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        handler.removeCallbacks(callTimeoutChecker)
+        handler.removeCallbacks(navigationTimeoutChecker)
         try { unregisterReceiver(batteryReceiver) } catch (_: Exception) {}
     }
 
@@ -210,31 +267,144 @@ class MediaListenerService : NotificationListenerService() {
         refreshSessions()
 
         val pkg = sbn.packageName ?: return
-        if (pkg !in monitoredPackages) return
+
+        // Skip sistem
+        if (pkg == "android" ||
+            pkg == "com.android.systemui" ||
+            pkg == "com.android.settings" ||
+            pkg.startsWith("com.google.android.gms") ||
+            pkg.startsWith("com.android.providers") ||
+            pkg == "com.android.vending" ||
+            pkg == "com.example.dynamicisland") {
+            return
+        }
 
         val extras = sbn.notification?.extras ?: return
-
         val title = extras.getCharSequence("android.title")?.toString()
             ?: extras.getCharSequence("android.conversationTitle")?.toString() ?: ""
         val text = extras.getCharSequence("android.text")?.toString()
             ?: extras.getCharSequence("android.bigText")?.toString()
             ?: extras.getCharSequence("android.subText")?.toString() ?: ""
 
+        if (title.isEmpty() && text.isEmpty()) return
+        if (sbn.isOngoing) return
+
+        // Cek whitelist user
+        val alwaysAllowed = pkg in listOf(
+            "com.google.android.apps.maps", "com.waze", "com.sygic.aura", "com.here.app.maps",
+            "com.google.android.deskclock", "com.android.deskclock", "com.miui.clock",
+            "com.samsung.android.app.clock", "com.sec.android.app.clockpackage",
+            "com.coloros.alarmclock", "com.oppo.alarmclock", "com.vivo.alarmclock",
+            "com.android.alarmclock",
+            "com.android.dialer", "com.samsung.android.dialer",
+            "com.google.android.dialer", "com.android.phone",
+            "com.android.server.telecom"
+        )
+
+        if (pkg !in alwaysAllowed) {
+            if (!NotificationPreferences.isAppEnabled(this, pkg)) {
+                Log.d("MediaListener", "Skip $pkg (disabled by user)")
+                return
+            }
+        }
+
         Log.d("MediaListener", "Notif from $pkg: [$title] [$text]")
 
-        when (pkg) {
-            "com.whatsapp", "com.whatsapp.w4b" -> handleWhatsApp(title, text, pkg)
+        when {
+            pkg in listOf(
+                "com.google.android.apps.maps", "com.waze",
+                "com.sygic.aura", "com.here.app.maps"
+            ) -> handleNavigation(title, text, pkg)
 
-            "com.google.android.apps.maps", "com.waze",
-            "com.sygic.aura", "com.here.app.maps" -> handleNavigation(title, text, pkg)
+            pkg in listOf(
+                "com.google.android.deskclock", "com.android.deskclock",
+                "com.miui.clock", "com.samsung.android.app.clock",
+                "com.sec.android.app.clockpackage", "com.coloros.alarmclock",
+                "com.oppo.alarmclock", "com.vivo.alarmclock",
+                "com.android.alarmclock"
+            ) -> handleAlarm(title, text, pkg)
 
-            "com.google.android.deskclock", "com.android.deskclock",
-            "com.miui.clock", "com.samsung.android.app.clock",
-            "com.sec.android.app.clockpackage", "com.coloros.alarmclock",
-            "com.oppo.alarmclock", "com.vivo.alarmclock",
-            "com.android.alarmclock" -> handleAlarm(title, text, pkg)
+            pkg in listOf(
+                "com.android.dialer", "com.samsung.android.dialer",
+                "com.google.android.dialer", "com.android.phone",
+                "com.android.server.telecom"
+            ) -> handleCallNotification(title, text, pkg)
 
-            else -> handleCallNotification(title, text, pkg)
+            pkg in listOf("com.whatsapp", "com.whatsapp.w4b") -> handleWhatsApp(title, text, pkg)
+
+            else -> handleGenericNotif(title, text, pkg)
+        }
+    }
+
+    // ============================================
+    // NOTIFICATION REMOVED — DETECT CALL END
+    // ============================================
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
+        super.onNotificationRemoved(sbn)
+        sbn ?: return
+
+        val pkg = sbn.packageName ?: return
+        val extras = sbn.notification?.extras ?: return
+        val title = extras.getCharSequence("android.title")?.toString() ?: ""
+        val text = extras.getCharSequence("android.text")?.toString() ?: ""
+
+        Log.d("MediaListener", "Notif removed from $pkg: [$title] [$text]")
+
+        // ============================================
+        // DETECT: panggilan selesai
+        // ============================================
+        if (IslandState.mode.value == IslandMode.CALL_RINGING ||
+            IslandState.mode.value == IslandMode.CALL_ACTIVE) {
+
+            val isCallNotif = text.contains("panggilan", ignoreCase = true) ||
+                    text.contains("call", ignoreCase = true) ||
+                    text.contains("berlangsung", ignoreCase = true) ||
+                    pkg.contains("dialer") ||
+                    pkg.contains("phone") ||
+                    pkg.contains("telecom") ||
+                    pkg.contains("whatsapp")
+
+            if (isCallNotif) {
+                // Cek apakah masih ada notif panggilan aktif lain
+                val stillHasCall = activeNotifications?.any { notif ->
+                    val nExtras = notif.notification?.extras ?: return@any false
+                    val nText = nExtras.getCharSequence("android.text")?.toString() ?: ""
+                    val nPkg = notif.packageName ?: ""
+
+                    (nPkg.contains("dialer") || nPkg.contains("phone") ||
+                     nPkg.contains("telecom") || nPkg.contains("whatsapp")) &&
+                    (nText.contains("panggilan", ignoreCase = true) ||
+                     nText.contains("call", ignoreCase = true) ||
+                     nText.contains("berlangsung", ignoreCase = true))
+                } ?: false
+
+                if (!stillHasCall) {
+                    Log.d("MediaListener", "Call notif removed — dismissing island")
+                    IslandState.dismissCall()
+                    lastCallUpdate = 0L
+                    handler.removeCallbacks(callTimeoutChecker)
+                }
+            }
+        }
+
+        // ============================================
+        // DETECT: navigation selesai
+        // ============================================
+        if (IslandState.mode.value == IslandMode.NAVIGATION &&
+            pkg in listOf(
+                "com.google.android.apps.maps", "com.waze",
+                "com.sygic.aura", "com.here.app.maps"
+            )) {
+            val stillHasNav = activeNotifications?.any { notif ->
+                notif.packageName == pkg && notif.isOngoing
+            } ?: false
+
+            if (!stillHasNav) {
+                Log.d("MediaListener", "Navigation notif removed — dismissing")
+                IslandState.dismissNavigation()
+                lastNavigationUpdate = 0L
+                handler.removeCallbacks(navigationTimeoutChecker)
+            }
         }
     }
 
@@ -258,6 +428,10 @@ class MediaListenerService : NotificationListenerService() {
 
         when {
             isIncomingCall -> {
+                lastCallUpdate = System.currentTimeMillis()
+                handler.removeCallbacks(callTimeoutChecker)
+                handler.postDelayed(callTimeoutChecker, 5_000L)
+
                 IslandState.showIncomingCall(
                     CallInfo(
                         name = title.ifEmpty { "WhatsApp" },
@@ -267,6 +441,7 @@ class MediaListenerService : NotificationListenerService() {
                     )
                 )
             }
+
             isMissedCall -> {
                 val initial = title.firstOrNull()?.uppercase()?.toString() ?: "W"
                 IslandState.showChat(
@@ -278,6 +453,7 @@ class MediaListenerService : NotificationListenerService() {
                     )
                 )
             }
+
             title.isNotEmpty() && text.isNotEmpty() -> {
                 val initial = title.firstOrNull()?.uppercase()?.toString() ?: "W"
                 IslandState.showChat(
@@ -303,6 +479,11 @@ class MediaListenerService : NotificationListenerService() {
                 title.contains("panggilan", ignoreCase = true)
 
         if (!isCall) return
+
+        // Catat waktu + start timeout
+        lastCallUpdate = System.currentTimeMillis()
+        handler.removeCallbacks(callTimeoutChecker)
+        handler.postDelayed(callTimeoutChecker, 5_000L)
 
         val isMissed = text.contains("tak terjawab", ignoreCase = true) ||
                 text.contains("missed", ignoreCase = true) ||
@@ -340,22 +521,65 @@ class MediaListenerService : NotificationListenerService() {
     // NAVIGATION
     // ============================================
     private fun handleNavigation(title: String, text: String, pkg: String) {
-        val etaPattern = Regex("""(\d+\s*min)\s*·\s*([\d.,]+\s*\w+)\s*·\s*(\d{1,2}[:.]\d{2})\s*ETA""")
-        val etaMatch = etaPattern.find(title)
-        val duration = etaMatch?.groupValues?.get(1) ?: ""
-        val distanceTotal = etaMatch?.groupValues?.get(2) ?: ""
-        val eta = etaMatch?.groupValues?.get(3) ?: ""
-
-        val parts = text.split("·").map { it.trim() }
-        val distance = parts.getOrNull(0) ?: ""
-        val instruction = parts.getOrNull(1) ?: text
-
         val appName = when (pkg) {
             "com.google.android.apps.maps" -> "Maps"
             "com.waze" -> "Waze"
             "com.sygic.aura" -> "Sygic"
             "com.here.app.maps" -> "HERE"
             else -> "Navigation"
+        }
+
+        val cleanTitle = title.trim()
+        val cleanText = text.trim()
+
+        val etaPattern = Regex("""(\d+\s*min)\s*·\s*([\d.,]+\s*\w+)\s*·\s*(\d{1,2}[:.]\d{2})\s*ETA""")
+        val etaMatch = etaPattern.find(cleanTitle)
+        val duration = etaMatch?.groupValues?.get(1) ?: ""
+        val distanceTotal = etaMatch?.groupValues?.get(2) ?: ""
+        val eta = etaMatch?.groupValues?.get(3) ?: ""
+
+        var distance = ""
+        var instruction = cleanText
+
+        when {
+            cleanText.contains("·") -> {
+                val parts = cleanText.split("·").map { it.trim() }
+                distance = parts.getOrNull(0) ?: ""
+                instruction = parts.getOrNull(1) ?: cleanText
+            }
+            cleanText.contains("\n") -> {
+                val lines = cleanText.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+                if (lines.size >= 2) {
+                    distance = lines[0]
+                    instruction = lines[1]
+                }
+            }
+            else -> {
+                instruction = cleanText
+                distance = ""
+            }
+        }
+
+        if (instruction.isEmpty()) instruction = cleanTitle
+
+        // Catat waktu
+        lastNavigationUpdate = System.currentTimeMillis()
+        handler.removeCallbacks(navigationTimeoutChecker)
+        handler.postDelayed(navigationTimeoutChecker, 5_000L)
+
+        if (cleanTitle == instruction && duration.isEmpty()) {
+            IslandState.showNavigation(
+                NavigationInfo(
+                    instruction = instruction,
+                    distance = "",
+                    duration = "",
+                    distanceTotal = "",
+                    eta = "",
+                    appName = appName,
+                    packageName = pkg
+                )
+            )
+            return
         }
 
         if (instruction.isNotEmpty() || distance.isNotEmpty()) {
@@ -374,7 +598,7 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     // ============================================
-    // ALARM (saat berbunyi — update label + ringing)
+    // ALARM
     // ============================================
     private fun handleAlarm(title: String, text: String, pkg: String) {
         Log.d("MediaListener", "Alarm notif: [$title] [$text]")
@@ -401,8 +625,39 @@ class MediaListenerService : NotificationListenerService() {
         )
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        super.onNotificationRemoved(sbn)
+    // ============================================
+    // GENERIC NOTIF (semua app lain)
+    // ============================================
+    private fun handleGenericNotif(title: String, text: String, pkg: String) {
+        val currentMode = IslandState.mode.value
+        if (currentMode == IslandMode.CALL_RINGING ||
+            currentMode == IslandMode.CALL_ACTIVE ||
+            currentMode == IslandMode.ALARM) {
+            return
+        }
+
+        val appName = try {
+            val pm = applicationContext.packageManager
+            val appInfo = pm.getApplicationInfo(pkg, 0)
+            pm.getApplicationLabel(appInfo).toString()
+        } catch (_: Exception) {
+            "Notifikasi"
+        }
+
+        val displayTitle = title.ifEmpty { appName }
+        val displayText = text.ifEmpty { "Notifikasi baru" }
+        val initial = displayTitle.firstOrNull()?.uppercase()?.toString()
+            ?: appName.firstOrNull()?.uppercase()?.toString()
+            ?: "?"
+
+        IslandState.showChat(
+            ChatInfo(
+                senderName = displayTitle,
+                message = displayText,
+                avatarInitial = initial,
+                packageName = pkg
+            )
+        )
     }
 
     // ============================================
