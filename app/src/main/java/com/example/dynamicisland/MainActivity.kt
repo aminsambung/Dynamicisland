@@ -245,6 +245,29 @@ fun MainScreen() {
 
                     Spacer(Modifier.height(8.dp))
 
+                    // ============ TOMBOL BARU: NAVIGASI MAPS ============
+                    Button(
+                        onClick = {
+                            IslandState.showNavigation(
+                                NavigationInfo(
+                                    instruction = "Belok Kanan",
+                                    distance = "200 m",
+                                    duration = "15 mnt",
+                                    distanceTotal = "5,2 km",
+                                    eta = "14:30",
+                                    appName = "Google Maps",
+                                    packageName = "com.google.android.apps.maps" // Penting agar bisa dibuka saat diklik
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)), // Warna Biru Google Maps
+                        enabled = serviceRunning
+                    ) { Text("🗺️ Navigasi Maps") }
+                    // ====================================================
+
+                    Spacer(Modifier.height(8.dp))
+
                     OutlinedButton(
                         onClick = { IslandState.reset() },
                         modifier = Modifier.fillMaxWidth(),
