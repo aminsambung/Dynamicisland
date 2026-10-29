@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import androidx.compose.ui.unit.IntOffset // 👇 TAMBAHAN ANIMASI
+import kotlin.math.roundToInt // 👇 TAMBAHAN ANIMASI
 
 // ============================================
 // WARNA AKSEN
@@ -67,6 +69,21 @@ fun DynamicIslandUI() {
     val mode = IslandState.mode.value
     val call = IslandState.callInfo.value
     val isCollapsed = IslandState.shouldShowCollapsed()
+
+    // 👇 TAMBAHAN ANIMASI: State untuk pergerakan kapsul
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val animatedOffset by animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = if (dragOffset == 0f) {
+            // Animasi memantul saat dilepas
+            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+        } else {
+            // Pergerakan instan saat sedang ditarik
+            spring(stiffness = Spring.StiffnessHigh)
+        },
+        label = "drag_offset"
+    )
+    // 👆 AKHIR TAMBAHAN ANIMASI
 
     val rawAlpha = IslandState.glassAlpha.value
     val borderAlpha = IslandState.borderAlpha.value
@@ -148,6 +165,7 @@ fun DynamicIslandUI() {
             modifier = Modifier
                 .width(width)
                 .height(height)
+                .offset { IntOffset(animatedOffset.roundToInt(), 0) } // 👇 TAMBAHAN ANIMASI: Kapsul bergeser
                 .clip(islandShape)
                 .background(
                     brush = Brush.verticalGradient(colors = gradientColors)
@@ -197,7 +215,7 @@ fun DynamicIslandUI() {
                                         openApp(context, IslandState.navigationInfo.value.packageName)
                                     }
                                     IslandMode.BLUETOOTH -> {
-                                        openBluetoothSettings(context)   // ⬅️ BARU
+                                        openBluetoothSettings(context)
                                     }
                                     IslandMode.IDLE -> {
                                         if (!IslandState.musicInfo.value.isEmpty) {
@@ -214,7 +232,7 @@ fun DynamicIslandUI() {
                                 IslandMode.CHARGING,
                                 IslandMode.NAVIGATION,
                                 IslandMode.ALARM,
-                                IslandMode.BLUETOOTH -> IslandState.toggleCollapse()   // ⬅️ BARU
+                                IslandMode.BLUETOOTH -> IslandState.toggleCollapse()
                                 IslandMode.CHAT -> IslandState.dismissChat()
                                 else -> {}
                             }
@@ -255,8 +273,12 @@ fun DynamicIslandUI() {
                                 else -> {}
                             }
                             totalDrag = 0f
+                            dragOffset = 0f // 👇 TAMBAHAN ANIMASI: Kembalikan kapsul ke tengah
                         },
-                        onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount }
+                        onHorizontalDrag = { _, dragAmount ->
+                            totalDrag += dragAmount
+                            dragOffset += dragAmount * 0.5f // 👇 TAMBAHAN ANIMASI: Kapsul ikut bergeser
+                        }
                     )
                 },
             contentAlignment = Alignment.Center
@@ -530,7 +552,7 @@ private fun MiniAlarmContent() {
 }
 
 // ============================================
-// MINI BLUETOOTH 🎧 (BARU)
+// MINI BLUETOOTH 🎧
 // ============================================
 @Composable
 private fun MiniBluetoothContent() {
@@ -993,7 +1015,7 @@ private fun AlarmContent() {
 }
 
 // ============================================
-// BLUETOOTH 🎧 (expanded) — BARU
+// BLUETOOTH 🎧 (expanded)
 // ============================================
 @Composable
 private fun BluetoothContent() {
