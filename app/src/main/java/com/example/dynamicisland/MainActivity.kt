@@ -13,12 +13,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,18 +53,25 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    
+    // State Status
     var hasOverlay by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var serviceRunning by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
 
-    // Launcher untuk meminta izin baca audio (Android 13+)
+    // State untuk Musik
+    var showPlaylistSheet by remember { mutableStateOf(false) }
+    var musicList by remember { mutableStateOf<List<Song>>(emptyList()) }
+    val sheetState = rememberModalBottomSheetState()
+
+    // Launcher Izin Membaca File Audio (Android 13+)
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            val list = MusicManager.scanMusic(context)
-            if (list.isNotEmpty()) {
-                MusicManager.playSong(context, 0)
+            musicList = MusicManager.scanMusic(context)
+            if (musicList.isNotEmpty()) {
+                showPlaylistSheet = true
             } else {
                 Toast.makeText(context, "Tidak ada musik di HP", Toast.LENGTH_SHORT).show()
             }
@@ -80,6 +91,7 @@ fun MainScreen() {
                     )
                 },
                 actions = {
+                    // MENU DROPDOWN (Selalu bisa diklik)
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                     }
@@ -91,21 +103,29 @@ fun MainScreen() {
                             text = { Text("⚙️ Setelan") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(Intent(context, SettingsActivity::class.java))
+                                try {
+                                    context.startActivity(Intent(context, SettingsActivity::class.java))
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Halaman Setelan belum siap", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("🎨 Warna Island") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(Intent(context, ColorSettingsActivity::class.java))
+                                try {
+                                    context.startActivity(Intent(context, ColorSettingsActivity::class.java))
+                                } catch (e: Exception) {}
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("🎯 Notifikasi") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(Intent(context, NotificationSettingsActivity::class.java))
+                                try {
+                                    context.startActivity(Intent(context, NotificationSettingsActivity::class.java))
+                                } catch (e: Exception) {}
                             }
                         )
                         HorizontalDivider()
@@ -113,7 +133,9 @@ fun MainScreen() {
                             text = { Text("ℹ️ Tentang") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(Intent(context, AboutActivity::class.java))
+                                try {
+                                    context.startActivity(Intent(context, AboutActivity::class.java))
+                                } catch (e: Exception) {}
                             }
                         )
                     }
@@ -213,12 +235,13 @@ fun MainScreen() {
 
             Spacer(Modifier.height(16.dp))
 
-            // ================= SIMULASI CARD =================
+            // ================= SIMULASI & MUSIK CARD =================
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("🎬 Simulasi", style = MaterialTheme.typography.titleMedium)
+                    Text("🎬 Simulasi & Musik", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(12.dp))
 
+                    // --- Tombol Simulasi Panggilan ---
                     Button(
                         onClick = {
                             IslandState.showIncomingCall(
@@ -232,6 +255,7 @@ fun MainScreen() {
 
                     Spacer(Modifier.height(8.dp))
 
+                    // --- Tombol Simulasi Chat ---
                     Button(
                         onClick = {
                             IslandState.showChat(
@@ -245,6 +269,7 @@ fun MainScreen() {
 
                     Spacer(Modifier.height(8.dp))
 
+                    // --- Tombol Simulasi Lagu Dummy ---
                     Button(
                         onClick = {
                             IslandState.updateMusic(
@@ -254,11 +279,11 @@ fun MainScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),
                         enabled = serviceRunning
-                    ) { Text("🎵 Simulasi Lagu") }
+                    ) { Text("🎵 Simulasi Lagu Dummy") }
 
                     Spacer(Modifier.height(8.dp))
 
-                    // ============ TOMBOL BARU: NAVIGASI MAPS ============
+                    // --- Tombol Navigasi Maps ---
                     Button(
                         onClick = {
                             IslandState.showNavigation(
@@ -282,7 +307,7 @@ fun MainScreen() {
                     HorizontalDivider(color = Color.LightGray)
                     Spacer(Modifier.height(16.dp))
 
-                    // ============ TOMBOL PEMUTAR MUSIK DARI HP ============
+                    // --- Tombol Pemutar Musik dari HP ---
                     Text("🎸 Musik dari Memori HP", style = MaterialTheme.typography.labelLarge, color = Color.DarkGray)
                     Spacer(Modifier.height(8.dp))
                     
@@ -299,19 +324,19 @@ fun MainScreen() {
                             if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
                                 permissionLauncher.launch(permission)
                             } else {
-                                val list = MusicManager.scanMusic(context)
-                                if (list.isNotEmpty()) {
-                                    MusicManager.playSong(context, 0)
+                                musicList = MusicManager.scanMusic(context)
+                                if (musicList.isNotEmpty()) {
+                                    showPlaylistSheet = true
                                 } else {
                                     Toast.makeText(context, "Tidak ada musik di HP", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B9D)), // Warna Pink
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B9D)),
                         enabled = serviceRunning
                     ) { 
-                        Text("🎸 Putar Musik dari HP") 
+                        Text("🎸 Pilih & Putar Musik dari HP") 
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -329,17 +354,14 @@ fun MainScreen() {
             Text(
                 "Tips:\n" +
                         "• Tap ⋮ (3-titik) kanan atas untuk Setelan\n" +
-                        "• Atur warna di Setelan → Warna Island\n" +
-                        "• Pilih notif app di Setelan → Notifikasi",
+                        "• Atur warna di Setelan → Warna Island",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
 
             Spacer(Modifier.height(24.dp))
 
-            // ============================================
-            // TANDA TANGAN / FOOTER
-            // ============================================
+            // FOOTER
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -376,6 +398,52 @@ fun MainScreen() {
         }
     }
 
+    // ================= BOTTOM SHEET PLAYLIST =================
+    if (showPlaylistSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPlaylistSheet = false },
+            sheetState = sheetState,
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = "Pilih Lagu dari HP",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(16.dp),
+                    fontWeight = FontWeight.Bold
+                )
+                HorizontalDivider()
+                
+                LazyColumn {
+                    items(musicList.size) { index ->
+                        val song = musicList[index]
+                        ListItem(
+                            headlineContent = { Text(song.title, maxLines = 1) },
+                            supportingContent = { Text(song.artist) },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF6B9D)
+                                )
+                            },
+                            modifier = Modifier.clickable {
+                                MusicManager.playSong(context, index)
+                                showPlaylistSheet = false
+                            }
+                        )
+                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                    }
+                }
+            }
+        }
+    }
+
+    // Timer untuk update status overlay
     LaunchedEffect(Unit) {
         while (true) {
             hasOverlay = Settings.canDrawOverlays(context)
