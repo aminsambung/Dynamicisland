@@ -61,8 +61,17 @@
             android:exported="false"
             android:label="Tentang"
             android:parentActivityName=".SettingsActivity" />
+        <!-- WIDGET UNTUK HOME SCREEN -->
+        <receiver android:name=".MusicWidgetProvider" android:exported="true">
+        <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent-filter>
+        <meta-data
+             android:name="android.appwidget.provider"
+             android:resource="@xml/widget_info" />
+        </receiver>
 
-        <service
+       <service
             android:name=".DynamicIslandService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
