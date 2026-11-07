@@ -424,11 +424,7 @@ fun MainScreen() {
                             headlineContent = { Text(song.title, maxLines = 1) },
                             supportingContent = { Text(song.artist) },
                             leadingContent = {
-                                Icon(
-                                    Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFF6B9D)
-                                )
+                            Text("🎵", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
                             },
                             modifier = Modifier.clickable {
                                 MusicManager.playSong(context, index)
