@@ -1,12 +1,17 @@
 package com.example.dynamicisland
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -47,6 +53,22 @@ fun MainScreen() {
     var serviceRunning by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
 
+    // Launcher untuk meminta izin baca audio (Android 13+)
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val list = MusicManager.scanMusic(context)
+            if (list.isNotEmpty()) {
+                MusicManager.playSong(context, 0)
+            } else {
+                Toast.makeText(context, "Tidak ada musik di HP", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Izin baca musik ditolak!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -58,7 +80,6 @@ fun MainScreen() {
                     )
                 },
                 actions = {
-                    // Tombol 3-titik
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                     }
@@ -70,27 +91,21 @@ fun MainScreen() {
                             text = { Text("⚙️ Setelan") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(
-                                    Intent(context, SettingsActivity::class.java)
-                                )
+                                context.startActivity(Intent(context, SettingsActivity::class.java))
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("🎨 Warna Island") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(
-                                    Intent(context, ColorSettingsActivity::class.java)
-                                )
+                                context.startActivity(Intent(context, ColorSettingsActivity::class.java))
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("🎯 Notifikasi") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(
-                                    Intent(context, NotificationSettingsActivity::class.java)
-                                )
+                                context.startActivity(Intent(context, NotificationSettingsActivity::class.java))
                             }
                         )
                         HorizontalDivider()
@@ -98,9 +113,7 @@ fun MainScreen() {
                             text = { Text("ℹ️ Tentang") },
                             onClick = {
                                 showMenu = false
-                                context.startActivity(
-                                    Intent(context, AboutActivity::class.java)
-                                )
+                                context.startActivity(Intent(context, AboutActivity::class.java))
                             }
                         )
                     }
@@ -256,15 +269,50 @@ fun MainScreen() {
                                     distanceTotal = "5,2 km",
                                     eta = "14:30",
                                     appName = "Google Maps",
-                                    packageName = "com.google.android.apps.maps" // Penting agar bisa dibuka saat diklik
+                                    packageName = "com.google.android.apps.maps"
                                 )
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)), // Warna Biru Google Maps
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
                         enabled = serviceRunning
                     ) { Text("🗺️ Navigasi Maps") }
-                    // ====================================================
+
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = Color.LightGray)
+                    Spacer(Modifier.height(16.dp))
+
+                    // ============ TOMBOL PEMUTAR MUSIK DARI HP ============
+                    Text("🎸 Musik dari Memori HP", style = MaterialTheme.typography.labelLarge, color = Color.DarkGray)
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Button(
+                        onClick = {
+                            MusicManager.initPlayer(context)
+                            
+                            val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                Manifest.permission.READ_MEDIA_AUDIO
+                            } else {
+                                Manifest.permission.READ_EXTERNAL_STORAGE
+                            }
+
+                            if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
+                                permissionLauncher.launch(permission)
+                            } else {
+                                val list = MusicManager.scanMusic(context)
+                                if (list.isNotEmpty()) {
+                                    MusicManager.playSong(context, 0)
+                                } else {
+                                    Toast.makeText(context, "Tidak ada musik di HP", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B9D)), // Warna Pink
+                        enabled = serviceRunning
+                    ) { 
+                        Text("🎸 Putar Musik dari HP") 
+                    }
 
                     Spacer(Modifier.height(8.dp))
 
@@ -298,7 +346,6 @@ fun MainScreen() {
                     .padding(vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Divider cantik
                 Box(
                     modifier = Modifier
                         .width(60.dp)
@@ -308,7 +355,6 @@ fun MainScreen() {
                 )
                 Spacer(Modifier.height(12.dp))
 
-                // Tanda tangan
                 Text(
                     "Made by Aminsambung",
                     style = MaterialTheme.typography.titleMedium,
@@ -318,7 +364,6 @@ fun MainScreen() {
                 )
                 Spacer(Modifier.height(4.dp))
 
-                // Versi app
                 Text(
                     "Dynamic Island v1.0",
                     style = MaterialTheme.typography.bodySmall,
