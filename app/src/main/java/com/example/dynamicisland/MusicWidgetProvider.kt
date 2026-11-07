@@ -6,8 +6,11 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+// Tambahkan import R jika belum ada
+import com.example.dynamicisland.R
 
 class MusicWidgetProvider : AppWidgetProvider() {
+// ... (sisanya biarkan sama)
 
     override fun onUpdate(
         context: Context,
