@@ -85,13 +85,15 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview:1.6.4")
     implementation("androidx.compose.material3:material3:1.2.1")
 
-    // ⚠️ material-icons-extended DIHAPUS — hemat ~3 MB
-    // Kalau butuh icon, pakai emoji atau SVG custom
-    // implementation("androidx.compose.material:material-icons-extended:1.6.4")
-
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.savedstate:savedstate-ktx:1.2.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // ============================================
+    // TAMBAHKAN INI UNTUK PEMUTAR MUSIK
+    // ============================================
+    implementation("androidx.media3:media3-exoplayer:1.2.0")
+    implementation("androidx.media3:media3-ui:1.2.0")
 
     // Core library desugaring (untuk API baru di minSdk 24)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
